@@ -1,0 +1,12 @@
+[project]
+name = "yds-graph"
+version = "0.1.0"
+description = "A LangGraph report pipeline and staff assistant with gates, a facts sheet, and a human in the loop."
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "live: hits the real Claude API; skipped unless ANTHROPIC_API_KEY is set",
+]
+addopts = "-q -m 'not live'"
