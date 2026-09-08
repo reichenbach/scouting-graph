@@ -7,6 +7,6 @@ requires-python = ">=3.11"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "live: hits the real Claude API; skipped unless ANTHROPIC_API_KEY is set",
+    "live: calls a real model; skipped unless ANTHROPIC_API_KEY is set or\n    YDS_MODEL_BASE_URL points at a reachable OpenAI compatible server",
 ]
 addopts = "-q -m 'not live'"

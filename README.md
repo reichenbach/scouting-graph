@@ -103,6 +103,72 @@ network, which is how the tests run.
 
 `make test`, `make run-sample` and `make ask` wrap the common ones.
 
+## Run it for free on a local model
+
+Nothing in the doctrine depends on which model writes the prose, so the whole
+pipeline runs against a model you host yourself, with no key and no bill. Any
+server that speaks the OpenAI chat API works. llama.cpp's server does, and so
+does ollama.
+
+Start a server:
+
+```bash
+# llama.cpp
+llama-server -m /path/to/model.gguf --port 8080 --jinja
+
+# or ollama, which already listens on 11434
+ollama serve
+```
+
+Point the pipeline at it:
+
+```bash
+export YDS_MODEL_BASE_URL=http://localhost:8080/v1   # ollama: http://localhost:11434/v1
+export YDS_MODEL_NAME=your-model-name                # llama.cpp is happy with any name
+# export YDS_MODEL_API_KEY=none                      # llama.cpp ignores it
+# export YDS_MODEL_BACKEND=openai_compat             # only needed to force the choice
+```
+
+With no `ANTHROPIC_API_KEY` set, `YDS_MODEL_BASE_URL` is enough. A key still
+holding the placeholder from `.env.example` counts as no key. The three
+variables also work in `.env`.
+
+Then everything runs the same way:
+
+```bash
+.venv/bin/python -m pytest                    # offline suite, no model at all
+.venv/bin/python -m pytest -m live -rs        # the two live tests, on your local model
+.venv/bin/python -m yds_graph run inbox/sample.csv --coach sample
+.venv/bin/python -m yds_graph resume <thread_id> --approve
+.venv/bin/python -m yds_graph ask "Our shortstop is out this weekend, who can play there?"
+```
+
+Two things the hosted API gives you for free are written out by hand for a
+local model, in `model.py` and `assistant_graph.py`:
+
+- **Structured output.** The notes step asks for one JSON object per pitcher,
+  with `response_format={"type": "json_object"}` when the server supports it
+  and a second attempt without it when the server does not. The reply is read
+  by locating the first balanced JSON object, so a code fence or an apology in
+  front of it does not fail a run. An unreadable reply is retried exactly once.
+- **Tool calling.** Bench Coach runs a ReAct loop instead of native tool use:
+  the model answers with `{"tool": "query_roster", "args": {...}}` or
+  `{"final": "..."}`, code executes the tool and feeds the result back, and the
+  loop is capped at six steps.
+
+What does not change is the part that matters. The facts sheet, `checks.py`,
+the gates, the human interrupt and the audit row are the same code on every
+backend. A small local model that invents a number gets held exactly like any
+other model, and there is a test that proves it.
+
+Expect a small local model to be slower and to fail the post-check more often
+than a frontier model. That is a real result, not a bug: a held run is the
+pipeline working. Two things learned from running a 3B model against it, both
+fixed in the prompt rather than in the check: a small model obeys "write
+exactly 5 sentences" far better than "write 4 to 7", and it has to be told to
+write the pitcher id exactly as given, because a spelled out "Opponent 24"
+puts a loose 24 in a sentence and the check is right to reject it.
+
 ### Resuming
 
 The graphs use a SQLite checkpointer at `state/checkpoints.sqlite`, so a run
@@ -181,12 +247,25 @@ records that a person read it rather than delivering anything.
   A numeric answer traces every number to a tool result. An injury question is
   not written to the database. An invented number holds the answer.
 - The SQL tools refuse anything that is not a single SELECT on their own table.
+- A pitcher id is an identifier, not a statistic: naming OPP-11 in a sentence
+  does not fail a draft, while a bare 11 still does.
+- Against a local server: a JSON payload buried in prose and a code fence is
+  still read, an unreadable answer is retried exactly once, a server that
+  rejects `response_format` is asked again without it, and the tool loop reads
+  the action shapes small models actually emit. A local model that invents a
+  number is held like any other.
 
-One test is marked `live` and runs the real model end to end, including the
-same post-check on real output. It skips unless `ANTHROPIC_API_KEY` is set:
+The local model path is covered offline too. A tiny HTTP server runs in a
+thread and speaks the OpenAI chat schema, so the tolerant JSON parser, the one
+retry, the fallback for a server that rejects `response_format`, and the whole
+ReAct tool loop are proved without a network.
+
+Two tests are marked `live` and run a real model end to end, including the
+same post-check on real output. They run against whichever backend is
+configured, and skip with a message naming what is missing when neither is:
 
 ```bash
-.venv/bin/python -m pytest -m live
+.venv/bin/python -m pytest -m live -rs
 ```
 
 ## Honest claim
@@ -216,6 +295,9 @@ tests/
 
 ## Model
 
-`claude-opus-5`, adaptive thinking, structured output for the notes step, a
-manual tool loop for Bench Coach. Pinned dependency versions are in
+`claude-opus-5` by default: adaptive thinking, structured output for the notes
+step, a manual tool loop for Bench Coach. `model.py` is the only file that
+talks to a model, and it has a second live path for any OpenAI compatible
+server, so the same pipeline runs on a model on your own machine. See "Run it
+for free on a local model". Pinned dependency versions are in
 `requirements.txt`.

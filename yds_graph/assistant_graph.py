@@ -213,12 +213,164 @@ def _live_agent(question: str, history: list[dict], db_path: Path | None) -> dic
     return {"answer": text.strip(), "tool_calls": calls}
 
 
+# --------------------------------------------------------------------------
+# The same loop against a local model, without native tool calling
+#
+# A small local model has no tool_use block, so the protocol is written into
+# the prompt: the model emits one JSON action per turn and code executes it.
+# Everything downstream is unchanged. The post check still proves every
+# number, and a message to parents still stops at the same interrupt.
+# --------------------------------------------------------------------------
+
+MAX_LOCAL_STEPS = 6
+
+REACT_PROTOCOL = """
+You work in a loop. Every turn you answer with exactly one JSON object and
+nothing else. No prose outside it, no code fence.
+
+To use a tool:
+{"tool": "query_schedule", "args": {"sql": "SELECT date, opponent FROM schedule ORDER BY date LIMIT 3"}}
+
+To answer the staff, once you have what you need:
+{"final": "Your answer in plain sentences."}
+
+The tools you may call, and their arguments:
+%s
+
+Rules for the loop:
+- One JSON object per turn. Never both a tool and a final.
+- A tool result comes back to you as a message beginning TOOL RESULT.
+- Every number in your final answer must appear in a tool result you already
+  received this conversation. If you do not have a number, do not state one.
+- You have at most %d turns. Call a tool only when you need it.
+"""
+
+
+def _tool_menu() -> str:
+    lines = []
+    for spec in tools.TOOL_SPECS:
+        params = ", ".join(sorted(spec["input_schema"].get("properties", {})))
+        description = " ".join(spec["description"].split())
+        lines.append(f"- {spec['name']}({params}): {description}")
+    return "\n".join(lines)
+
+
+def _local_system() -> str:
+    return SYSTEM + "\n" + (REACT_PROTOCOL % (_tool_menu(), MAX_LOCAL_STEPS))
+
+
+def _parse_action(text: str) -> dict:
+    """Read one action out of a local model's turn.
+
+    Tolerant about the wrapper and about which key the model used for the
+    arguments, strict about what it means: a tool call names a tool, a final
+    carries text, and anything else is not an action.
+    """
+    payload = model.extract_json_object(text)
+    if "final" in payload and payload["final"]:
+        return {"kind": "final", "text": str(payload["final"])}
+    if "answer" in payload and payload["answer"]:
+        return {"kind": "final", "text": str(payload["answer"])}
+
+    known = {spec["name"] for spec in tools.TOOL_SPECS}
+    name = payload.get("tool") or payload.get("name") or payload.get("action")
+    if not name and len(payload) == 1:
+        # Small models often answer {"query_roster": {"sql": ...}} instead of
+        # naming the key "tool". That is the same intent, so it is read, and
+        # the tool still has to be one that exists.
+        only_key = next(iter(payload))
+        if only_key in known:
+            arguments = payload[only_key]
+            return {
+                "kind": "tool",
+                "name": only_key,
+                "args": arguments if isinstance(arguments, dict) else {},
+            }
+    if not name:
+        raise ValueError("action names no tool and carries no final")
+    if str(name) not in known:
+        raise ValueError(f"{name!r} is not one of {sorted(known)}")
+    arguments = (
+        payload.get("args")
+        if payload.get("args") is not None
+        else payload.get("arguments")
+        if payload.get("arguments") is not None
+        else payload.get("tool_input", {})
+    )
+    if isinstance(arguments, str):
+        try:
+            arguments = model.extract_json_object(arguments)
+        except ValueError:
+            arguments = {"sql": arguments}
+    if not isinstance(arguments, dict):
+        arguments = {}
+    return {"kind": "tool", "name": str(name), "args": arguments}
+
+
+def _openai_agent(question: str, history: list[dict], db_path: Path | None) -> dict:
+    messages: list[dict] = []
+    for turn in history:
+        messages.append({"role": turn["role"], "content": turn["content"]})
+    messages.append({"role": "user", "content": question})
+
+    calls: list[dict] = []
+    answer = ""
+    for step in range(MAX_LOCAL_STEPS):
+        last = step == MAX_LOCAL_STEPS - 1
+        text = model.openai_chat(
+            messages, system=_local_system(), json_object=True
+        )
+        messages.append({"role": "assistant", "content": text})
+        try:
+            action = _parse_action(text)
+        except (ValueError, KeyError, TypeError) as exc:
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        f"That was not a valid action ({exc}). Answer again with one "
+                        'JSON object, either {"tool": ..., "args": {...}} or '
+                        '{"final": "..."}.'
+                    ),
+                }
+            )
+            continue
+
+        if action["kind"] == "final":
+            answer = action["text"].strip()
+            break
+
+        result = tools.execute(action["name"], action["args"], db_path)
+        calls.append({"name": action["name"], "arguments": action["args"], "result": result})
+        follow_up = f"TOOL RESULT ({action['name']}):\n{result}"
+        if last:
+            follow_up += (
+                "\n\nThat was your last tool call. Answer now with "
+                '{"final": "..."} using only numbers from the tool results above.'
+            )
+        messages.append({"role": "user", "content": follow_up})
+
+    if not answer:
+        # The loop ran out without a final. Say so rather than passing along a
+        # half formed action as if it were an answer.
+        answer = (
+            "I could not put an answer together from what is on file, so I am not "
+            "stating one. Ask the staff."
+        )
+    return {"answer": answer, "tool_calls": calls}
+
+
 def get_agent():
     mode = config.stub_mode()
     if mode == "fabricate":
         return lambda q, h, db: _stub_agent(q, h, db, fabricate=True)
     if mode:
         return lambda q, h, db: _stub_agent(q, h, db, fabricate=False)
+    backend = config.model_backend()
+    if backend == config.BACKEND_STUB:
+        return lambda q, h, db: _stub_agent(q, h, db, fabricate=False)
+    if backend == config.BACKEND_OPENAI_COMPAT:
+        return _openai_agent
     return _live_agent
 
 

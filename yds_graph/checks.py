@@ -4,8 +4,18 @@ The model writes prose. Code then proves, number by number, that the prose
 says nothing the facts sheet did not already say. A single number that does
 not trace back is enough to reject the draft.
 
-Documented exception: a ball-strike count written in baseball notation
-(0-0, 1-2, 3-2) is treated as notation, not as a claim.
+Documented exceptions, and there are only two. Both are identifiers rather
+than claims, and both are narrow enough that no statistic can hide inside
+them:
+
+1. A ball-strike count written in baseball notation (0-0, 1-2, 3-2).
+2. A pitcher id of the form OPP-11: capital letters, a hyphen, digits. A
+   model that names the pitcher it is writing about is not stating a number,
+   and the 11 in OPP-11 is not a measurement. A fabricated statistic cannot
+   take this shape, because the letters and the hyphen are required.
+
+Nothing else is exempt. Widening this list to make a draft pass is the one
+change that defeats the whole file.
 """
 
 from __future__ import annotations
@@ -18,6 +28,9 @@ from . import config
 
 CITATION_RE = re.compile(r"\[(f\d+)\]")
 COUNT_NOTATION_RE = re.compile(r"\b[0-3]-[0-2]\b")
+# Pitcher and opponent ids: OPP-11, OPP-24. See the exceptions in the module
+# docstring. Requires at least two capital letters before the hyphen.
+IDENTIFIER_RE = re.compile(r"\b[A-Z]{2,}-\d+\b")
 NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
 SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
@@ -39,6 +52,7 @@ def split_sentences(text: str) -> list[str]:
 
 def numbers_in(text: str) -> list[float]:
     stripped = CITATION_RE.sub(" ", text)
+    stripped = IDENTIFIER_RE.sub(" ", stripped)
     stripped = COUNT_NOTATION_RE.sub(" ", stripped)
     return [float(m) for m in NUMBER_RE.findall(stripped)]
 
