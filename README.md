@@ -1,11 +1,11 @@
 # yds_graph
 
 A working model of how a scouting report gets built when a model is in the
-loop, and a small staff assistant built on the same rules.
+loop, and Bench Coach, a small staff assistant built on the same rules.
 
 Two LangGraph graphs, one doctrine. The report graph turns a pitch tracking
 export into a one page per pitcher PDF, and refuses to produce one when the
-data or the prose does not hold up. The assistant graph answers staff
+data or the prose does not hold up. The Bench Coach graph answers staff
 questions over a small SQL database and refuses to state a number it cannot
 trace.
 
@@ -52,7 +52,7 @@ flowchart TD
     hold[hold<br/>hold note plus audit row] --> DONE
 ```
 
-## The assistant graph
+## The Bench Coach graph
 
 ```mermaid
 flowchart TD
@@ -93,7 +93,7 @@ network, which is how the tests run.
 .venv/bin/python -m yds_graph run sample_data/bad_schema.csv --coach sample
 .venv/bin/python -m yds_graph run sample_data/thin_coverage.csv --coach sample
 
-# the staff assistant
+# Bench Coach
 .venv/bin/python -m yds_graph ask "What do we have on the Friday matchup?"
 .venv/bin/python -m yds_graph ask "Follow up on that" --session <session_id>
 
@@ -177,7 +177,7 @@ records that a person read it rather than delivering anything.
   note. Approving produces a PDF whose bytes contain the version stamp, the
   source file and its hash.
 - A run paused in one process resumes in another, through the checkpointer.
-- Assistant: a parent message request ends at an interrupt rather than a send.
+- Bench Coach: a parent message request ends at an interrupt rather than a send.
   A numeric answer traces every number to a tool result. An injury question is
   not written to the database. An invented number holds the answer.
 - The SQL tools refuse anything that is not a single SELECT on their own table.
@@ -207,8 +207,8 @@ yds_graph/
   render.py            the PDF, with the provenance footer
   audit.py             the audit table
   report_graph.py      part one
-  assistant_graph.py   part two
-  tools.py             the assistant's SQL tools and database
+  assistant_graph.py   part two, the Bench Coach graph
+  tools.py             Bench Coach's SQL tools and database
 scripts/make_sample_data.py
 sample_data/           synthetic exports, roster, schedule, philosophy
 tests/
@@ -217,5 +217,5 @@ tests/
 ## Model
 
 `claude-opus-5`, adaptive thinking, structured output for the notes step, a
-manual tool loop for the assistant. Pinned dependency versions are in
+manual tool loop for Bench Coach. Pinned dependency versions are in
 `requirements.txt`.

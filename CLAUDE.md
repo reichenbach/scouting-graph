@@ -50,8 +50,14 @@ and `coach_note` (plain and kind). Both are required.
 ## A person approves
 
 The `review` node is a real LangGraph `interrupt`. Do not add a bypass, an
-auto approve flag, or an environment variable that skips it. The assistant
+auto approve flag, or an environment variable that skips it. Bench Coach
 does not send messages, and no send path should be added to it.
+
+## Naming
+
+The assistant graph is called **Bench Coach**, two words, both capitalized.
+The module keeps its filename, `assistant_graph.py`. The word AI is never part
+of the name.
 
 ## Audit rows
 
