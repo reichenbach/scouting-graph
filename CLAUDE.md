@@ -75,6 +75,30 @@ number means.
 real outbox, errors folder, or audit database. New behaviour gets a test that
 proves the failure path, not only the happy path.
 
+## Which model answers
+
+`model.py` is still the only file that talks to a model, and it now has two
+live paths behind one switch, `config.model_backend()`:
+
+- `anthropic`, the default whenever a real `ANTHROPIC_API_KEY` is present
+- `openai_compat`, any server that speaks `/v1/chat/completions`, which is how
+  llama.cpp and ollama expose a model on your own machine
+- `stub`, the deterministic no network path, same as `YDS_GRAPH_STUB=1`
+
+With no key set, a `YDS_MODEL_BASE_URL` is enough to select the local path.
+A key that still holds the placeholder from `.env.example` counts as no key.
+
+The local path carries the protocol the hosted API gives you for free: the
+notes step asks for one JSON object and parses tolerantly, and Bench Coach
+runs a ReAct loop where the model emits `{"tool": ..., "args": {...}}` or
+`{"final": ...}`, capped at `MAX_LOCAL_STEPS`.
+
+None of that is a second set of rules. The facts sheet, `checks.py`, the
+gates, the interrupt and the audit row are the same code on every backend. If
+you add a backend, it produces prose and tool calls and nothing else. It does
+not get its own tolerance, its own retry count on the post check, or a way
+around review.
+
 ## Secrets
 
 Keys live in `.env`, which is gitignored. Never commit a key, never print one,

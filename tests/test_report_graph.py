@@ -182,16 +182,12 @@ def test_resume_from_a_separate_process_uses_the_checkpointer(home):
 
 
 @pytest.mark.live
-def test_live_write_notes_passes_the_same_check(home, monkeypatch):
-    """Runs the real model. Skipped unless ANTHROPIC_API_KEY is set."""
-    import os
-
-    from yds_graph import config
+def test_live_write_notes_passes_the_same_check(home, monkeypatch, capsys):
+    """Runs whichever real model is configured, hosted or local."""
+    from conftest import live_backend_or_skip
 
     monkeypatch.delenv("YDS_GRAPH_STUB", raising=False)
-    config._load_env()
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        pytest.skip("no ANTHROPIC_API_KEY")
+    backend = live_backend_or_skip()
 
     import pandas as pd
 
@@ -202,6 +198,44 @@ def test_live_write_notes_passes_the_same_check(home, monkeypatch):
     source = home / "inbox" / "sample.csv"
     frame, _ = adapt(pd.read_csv(source))
     sheet = compute_facts(frame, file_provenance(source, frame))
-    notes = model.live_write_notes(sheet)
+    writer = model.get_notes_writer()
+    notes = writer(sheet)
     violations = check_all_notes(notes, sheet)
+    with capsys.disabled():
+        print(f"\n[live] backend: {backend}")
+        for pitcher in sorted(notes):
+            print(f"[live] {pitcher}: {notes[pitcher]}")
     assert violations == [], violations
+
+
+# --------------------------------------------------------------------------
+# the documented exceptions in checks.py, and their edges
+# --------------------------------------------------------------------------
+
+def test_a_pitcher_id_is_an_identifier_not_a_number():
+    from yds_graph.checks import numbers_in
+
+    assert numbers_in("OPP-11 uses fastball 54.2% [f1] of the time.") == [54.2]
+    assert numbers_in("A 0-2 count, per OPP-24, at 41.4 percent [f53].") == [41.4]
+    # the exception is narrow: a bare number, or a lowercase word before the
+    # hyphen, is still a claim the model has to trace
+    assert numbers_in("Opponent 11 sits at 54.2 percent [f1].") == [11.0, 54.2]
+    assert numbers_in("He was 11-2 in the sample [f1].") == [11.0, 2.0]
+
+
+def test_naming_the_pitcher_does_not_by_itself_fail_a_draft(home):
+    import pandas as pd
+
+    from yds_graph.adapters import adapt
+    from yds_graph.checks import check_notes
+    from yds_graph.facts import compute_facts, file_provenance
+
+    source = home / "inbox" / "sample.csv"
+    frame, _ = adapt(pd.read_csv(source))
+    sheet = compute_facts(frame, file_provenance(source, frame))
+    pitcher = "OPP-11"
+    facts = [sheet["facts"][i] for i in sheet["pitchers"][pitcher]["fact_ids"][:4]]
+    notes = " ".join(
+        f"{pitcher} shows {f['label']} at {f['value']} [{f['id']}]." for f in facts
+    )
+    assert check_notes(pitcher, notes, sheet) == []

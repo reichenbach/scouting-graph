@@ -117,22 +117,26 @@ def test_sql_tools_refuse_to_write(home):
 
 
 @pytest.mark.live
-def test_live_assistant_answer_traces_to_tools(home, monkeypatch):
-    import os
+def test_live_assistant_answer_traces_to_tools(home, monkeypatch, capsys):
+    """Runs whichever real model is configured, hosted or local."""
+    from conftest import live_backend_or_skip
 
     monkeypatch.delenv("YDS_GRAPH_STUB", raising=False)
-    config._load_env()
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        pytest.skip("no ANTHROPIC_API_KEY")
+    backend = live_backend_or_skip()
 
     tools.build_db()
     from yds_graph.checks import check_answer_numbers
 
-    result = assistant_graph._live_agent(
+    agent = assistant_graph.get_agent()
+    result = agent(
         "What is on file for opponent pitcher OPP-11, and who is next on the schedule?",
         [],
         None,
     )
     grounded = [call["result"] for call in result["tool_calls"]]
+    with capsys.disabled():
+        print(f"\n[live] backend: {backend}")
+        print(f"[live] tools called: {[c['name'] for c in result['tool_calls']]}")
+        print(f"[live] answer: {result['answer']}")
     assert result["tool_calls"], "the assistant should have called a tool"
     assert check_answer_numbers(result["answer"], grounded) == []
