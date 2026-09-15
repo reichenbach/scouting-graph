@@ -1,6 +1,6 @@
 [project]
 name = "yds-graph"
-version = "0.1.0"
+version = "0.2.0"
 description = "A LangGraph report pipeline and staff assistant with gates, a facts sheet, and a human in the loop."
 requires-python = ">=3.11"
 

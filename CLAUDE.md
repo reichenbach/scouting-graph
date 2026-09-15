@@ -59,6 +59,11 @@ The assistant graph is called **Bench Coach**, two words, both capitalized.
 The module keeps its filename, `assistant_graph.py`. The word AI is never part
 of the name.
 
+The third graph is the **Library**. Retrieval over unstructured docs only.
+Do not add a vector store to Bench Coach, and do not answer roster or
+schedule questions from the library. `lookup` is the command. `library.py`
+is the store. `library_graph.py` is the graph.
+
 ## Audit rows
 
 Every terminal path writes an audit row, including holds. If you add a

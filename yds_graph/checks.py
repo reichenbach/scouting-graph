@@ -27,6 +27,7 @@ from . import config
 
 
 CITATION_RE = re.compile(r"\[(f\d+)\]")
+LIBRARY_CITATION_RE = re.compile(r"\[(c\d+)\]")
 COUNT_NOTATION_RE = re.compile(r"\b[0-3]-[0-2]\b")
 # Pitcher and opponent ids: OPP-11, OPP-24. See the exceptions in the module
 # docstring. Requires at least two capital letters before the hyphen.
@@ -52,6 +53,7 @@ def split_sentences(text: str) -> list[str]:
 
 def numbers_in(text: str) -> list[float]:
     stripped = CITATION_RE.sub(" ", text)
+    stripped = LIBRARY_CITATION_RE.sub(" ", stripped)
     stripped = IDENTIFIER_RE.sub(" ", stripped)
     stripped = COUNT_NOTATION_RE.sub(" ", stripped)
     return [float(m) for m in NUMBER_RE.findall(stripped)]
@@ -135,6 +137,72 @@ def check_all_notes(draft_notes: dict[str, str], facts_sheet: dict) -> list[Viol
         violations.append(
             Violation(pitcher, "unknown_pitcher", "The model wrote notes for a pitcher not in the file.")
         )
+    return violations
+
+
+def check_library_answer(answer: str, passages: list[dict]) -> list[Violation]:
+    """Library version: every number traces to a cited passage, or the run holds.
+
+    Same idea as the facts sheet. The model may refuse when nothing was
+    retrieved. It may not invent a number, and it may not cite a passage it
+    was not handed.
+    """
+    violations: list[Violation] = []
+    text = answer or ""
+    if not text.strip():
+        return [Violation("library", "empty", "The model returned no library answer.")]
+
+    allowed = {row["id"]: row for row in passages}
+    cited = LIBRARY_CITATION_RE.findall(text)
+    for passage_id in cited:
+        if passage_id not in allowed:
+            violations.append(
+                Violation(
+                    "library",
+                    "unknown_passage_id",
+                    f"Cited [{passage_id}], which was not in the retrieved set.",
+                )
+            )
+
+    if not passages:
+        if numbers_in(text):
+            violations.append(
+                Violation(
+                    "library",
+                    "number_without_passage",
+                    "Nothing was retrieved, but the answer still states a number.",
+                )
+            )
+        return violations
+
+    for sentence in split_sentences(text):
+        nums = numbers_in(sentence)
+        if not nums:
+            continue
+        sentence_cites = LIBRARY_CITATION_RE.findall(sentence)
+        cited_passages = [allowed[i] for i in sentence_cites if i in allowed]
+        if not cited_passages:
+            violations.append(
+                Violation(
+                    "library",
+                    "uncited_number",
+                    f"Sentence carries a number with no passage id: {sentence!r}",
+                )
+            )
+            continue
+        grounded = []
+        for passage in cited_passages:
+            grounded.extend(numbers_in(passage["text"]))
+        for num in nums:
+            if not any(abs(num - g) <= config.NUMBER_TOLERANCE for g in grounded):
+                violations.append(
+                    Violation(
+                        "library",
+                        "number_not_in_passage",
+                        f"The value {num} does not appear in a cited passage "
+                        f"in: {sentence!r}",
+                    )
+                )
     return violations
 
 

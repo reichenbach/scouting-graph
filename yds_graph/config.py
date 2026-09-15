@@ -17,7 +17,7 @@ except Exception:  # pragma: no cover - dotenv is pinned, but stay defensive
     load_dotenv = None
 
 
-PIPELINE_VERSION = "yds-graph 0.1.0"
+PIPELINE_VERSION = "yds-graph 0.2.0"
 FACTS_SCHEMA_VERSION = "facts-v1"
 RULES_VERSION = "gates-v1"
 
@@ -48,6 +48,14 @@ MAX_SENTENCES = 7
 # A number in the prose may differ from the fact by this much and still be
 # considered the same number (the model is allowed to round).
 NUMBER_TOLERANCE = 0.55
+
+# Library graph: retrieve this many passages, drop anything below the score.
+# The store is TF-IDF vectors in SQLite. Roster and schedule stay SQL.
+# A chunk also has to share a content word (5+ letters) with the question,
+# so "who plays shortstop" does not retrieve a parent-message passage.
+LIBRARY_TOP_K = 4
+LIBRARY_MIN_SCORE = 0.12
+LIBRARY_OVERLAP_MIN_LEN = 5
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent

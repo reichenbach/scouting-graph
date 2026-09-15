@@ -1,6 +1,6 @@
 PY := .venv/bin/python
 
-.PHONY: help venv data test run-sample ask audit clean
+.PHONY: help venv data test run-sample ask lookup audit clean
 
 help:
 	@echo "make venv        create .venv and install pinned deps"
@@ -8,6 +8,7 @@ help:
 	@echo "make test        run the offline test suite"
 	@echo "make run-sample  run the report pipeline on inbox/sample.csv with the stub model"
 	@echo "make ask         ask the staff assistant a sample question with the stub model"
+	@echo "make lookup      ask the staff library a methodology question with the stub model"
 	@echo "make audit       print the audit table"
 
 venv:
@@ -26,6 +27,9 @@ run-sample:
 
 ask:
 	YDS_GRAPH_STUB=1 $(PY) -m yds_graph ask "What do we have on the Friday matchup?"
+
+lookup:
+	YDS_GRAPH_STUB=1 $(PY) -m yds_graph lookup "How is chase rate defined in a report?"
 
 audit:
 	$(PY) -m yds_graph audit
