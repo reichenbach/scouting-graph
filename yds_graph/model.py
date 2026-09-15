@@ -393,6 +393,140 @@ def openai_write_notes(facts_sheet: dict, feedback: str | None = None) -> dict[s
     return out
 
 
+LIBRARY_SYSTEM = """You answer a college baseball staff question from retrieved library passages.
+
+Hard rules, checked in code after you answer:
+- Use only the passages you were given. If they do not contain the answer, say you have nothing on file.
+- Every sentence that contains a number must cite the passage id in square brackets, like [c3].
+- Only cite ids from the passages listed. Do not invent a passage id.
+- Do not compute, combine, average, or infer a new number. Copy a number as it appears.
+- Plain sentences. No markdown, no bullet points, no dashes for punctuation.
+- Do not answer roster, schedule, or opponent-stat questions from this library. Those are SQL. If the question is of that kind, say so and stop.
+
+If the passages do not support an answer, say you have nothing on file and state no number."""
+
+
+def build_library_prompt(
+    question: str, passages: list[dict], feedback: str | None = None
+) -> str:
+    from .library import render_passages
+
+    prompt = (
+        "Question from the staff:\n"
+        + question
+        + "\n\nRetrieved passages:\n"
+        + render_passages(passages)
+        + "\n\nAnswer from those passages only."
+    )
+    if feedback:
+        prompt += (
+            "\n\nYour previous draft was rejected by the automatic check for these "
+            "reasons. Fix all of them:\n" + feedback
+        )
+    return prompt
+
+
+def stub_write_library(
+    question: str, passages: list[dict], feedback: str | None = None
+) -> str:
+    if not passages:
+        return "Nothing on file about that. The library does not have a passage for this question."
+    sentences = []
+    for passage in passages[:2]:
+        first = passage["text"].split(".")[0].strip()
+        if first and not first.endswith("."):
+            first += "."
+        sentences.append(f"{first} [{passage['id']}].")
+    return " ".join(sentences)
+
+
+def stub_write_library_fabricating(
+    question: str, passages: list[dict], feedback: str | None = None
+) -> str:
+    base = stub_write_library(question, passages, feedback)
+    return base + " The conference also caps a pitcher at 127 pitches in a weekend [c1]."
+
+
+def live_write_library(
+    question: str, passages: list[dict], feedback: str | None = None
+) -> str:
+    client = _client()
+    schema = {
+        "type": "object",
+        "properties": {"answer": {"type": "string"}},
+        "required": ["answer"],
+        "additionalProperties": False,
+    }
+    response = _create(
+        client,
+        model=config.MODEL_ID,
+        max_tokens=2000,
+        system=LIBRARY_SYSTEM,
+        messages=[
+            {"role": "user", "content": build_library_prompt(question, passages, feedback)}
+        ],
+        output_config={"format": {"type": "json_schema", "schema": schema}},
+    )
+    if response.stop_reason == "refusal":
+        raise ModelRefusal(f"Model declined the request: {response.stop_details}")
+    text = next(b.text for b in response.content if b.type == "text")
+    return str(json.loads(text)["answer"]).strip()
+
+
+LOCAL_LIBRARY_SYSTEM = (
+    LIBRARY_SYSTEM
+    + """
+
+Answer with one JSON object and nothing else:
+{"answer": "Sentence one [c1]. Sentence two [c2]."}
+
+Copy numbers exactly as they appear in a cited passage. If nothing was retrieved, the object is {"answer": "Nothing on file about that."} and it contains no number."""
+)
+
+
+def openai_write_library(
+    question: str, passages: list[dict], feedback: str | None = None
+) -> str:
+    prompt = build_library_prompt(question, passages, feedback)
+    messages = [{"role": "user", "content": prompt}]
+    text = openai_chat(messages, system=LOCAL_LIBRARY_SYSTEM, json_object=True)
+    try:
+        answer = extract_json_object(text)["answer"]
+    except (ValueError, KeyError, TypeError):
+        messages = [
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": text},
+            {
+                "role": "user",
+                "content": (
+                    'That was not the required shape. Answer again with one JSON '
+                    'object exactly like {"answer": "..."}.'
+                ),
+            },
+        ]
+        text = openai_chat(messages, system=LOCAL_LIBRARY_SYSTEM, json_object=True)
+        try:
+            answer = extract_json_object(text)["answer"]
+        except (ValueError, KeyError, TypeError):
+            answer = ""
+    return str(answer or "").strip()
+
+
+def get_library_writer():
+    """Return the callable the library graph uses. Tests monkeypatch this."""
+    mode = config.stub_mode()
+    if mode == "fabricate":
+        return stub_write_library_fabricating
+    if mode:
+        return stub_write_library
+    backend = config.model_backend()
+    if backend == config.BACKEND_STUB:
+        return stub_write_library
+    if backend == config.BACKEND_OPENAI_COMPAT:
+        return openai_write_library
+    return live_write_library
+
+
 def get_notes_writer():
     """Return the callable the graph uses. Tests monkeypatch this."""
     mode = config.stub_mode()

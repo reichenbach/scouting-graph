@@ -141,7 +141,7 @@ def test_approve_produces_pdf_with_provenance_footer(home, checkpointer, monkeyp
     pdf = home / "outbox" / "sample" / "sample_t-ok.pdf"
     assert pdf.exists()
     blob = pdf.read_bytes()
-    assert b"yds-graph 0.1.0" in blob
+    assert b"yds-graph 0.2.0" in blob
     assert b"sample.csv" in blob
     assert b"sha256" in blob
 

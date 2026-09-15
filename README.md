@@ -1,13 +1,17 @@
 # yds_graph
 
 A working model of how a scouting report gets built when a model is in the
-loop, and Bench Coach, a small staff assistant built on the same rules.
+loop, and two staff tools built on the same rules: Bench Coach over SQL, and
+the Library over a local vector store of unstructured docs.
 
-Two LangGraph graphs, one doctrine. The report graph turns a pitch tracking
-export into a one page per pitcher PDF, and refuses to produce one when the
-data or the prose does not hold up. The Bench Coach graph answers staff
-questions over a small SQL database and refuses to state a number it cannot
-trace.
+Two LangGraph graphs, one doctrine, then a third graph that is allowed to
+retrieve. The report graph turns a pitch tracking export into a one page per
+pitcher PDF, and refuses to produce one when the data or the prose does not
+hold up. The Bench Coach graph answers staff questions over a small SQL
+database and refuses to state a number it cannot trace. The Library graph
+answers methodology and handbook questions from retrieved passages, with the
+same cite-or-stop check. Roster and schedule stay SQL. They are not similarity
+search.
 
 Everything in this repo is synthetic. No real coach, school, program, player
 or vendor appears anywhere in it.
@@ -68,6 +72,25 @@ flowchart TD
     hold_answer[hold_answer<br/>refuses to answer, audit row] --> DONE
 ```
 
+## The Library graph
+
+Roster questions stay on Bench Coach. This graph is only for unstructured
+text: how a number is defined, how a note is written, a conference handbook
+excerpt, the staff philosophy.
+
+```mermaid
+flowchart TD
+    START([question]) --> retrieve
+    retrieve[retrieve<br/>TF-IDF vectors in SQLite, top passages or none] --> draft
+    draft[draft<br/>model writes from those passages only] --> post_check
+    post_check[post_check<br/>every number must appear in a cited passage]
+    post_check -->|number not grounded, first time| draft
+    post_check -->|number not grounded, second time| hold_answer
+    post_check -->|clean| persist
+    persist[persist<br/>audit row] --> DONE([end])
+    hold_answer[hold_answer<br/>refuses to answer, audit row] --> DONE
+```
+
 ## Running it
 
 ```bash
@@ -97,11 +120,18 @@ network, which is how the tests run.
 .venv/bin/python -m yds_graph ask "What do we have on the Friday matchup?"
 .venv/bin/python -m yds_graph ask "Follow up on that" --session <session_id>
 
+# Library: methodology, notes contract, handbook excerpt. Not the roster.
+.venv/bin/python -m yds_graph lookup "How is chase rate defined in a report?"
+.venv/bin/python -m yds_graph lookup "Who else has played shortstop for us?"
+
 # what happened, and to which file
 .venv/bin/python -m yds_graph audit
 ```
 
-`make test`, `make run-sample` and `make ask` wrap the common ones.
+`make test`, `make run-sample`, `make ask` and `make lookup` wrap the common ones.
+
+GitHub Actions runs the offline suite on every push. `Dockerfile` runs the
+same suite: `docker build -t yds-graph . && docker run --rm yds-graph`.
 
 ## Run it for free on a local model
 
@@ -141,6 +171,7 @@ Then everything runs the same way:
 .venv/bin/python -m yds_graph run inbox/sample.csv --coach sample
 .venv/bin/python -m yds_graph resume <thread_id> --approve
 .venv/bin/python -m yds_graph ask "Our shortstop is out this weekend, who can play there?"
+.venv/bin/python -m yds_graph lookup "How is chase rate defined in a report?"
 ```
 
 Two things the hosted API gives you for free are written out by hand for a
@@ -228,6 +259,20 @@ PAUSED FOR HUMAN REVIEW
 The graph stops. There is no send path in this program at all, and approving
 records that a person read it rather than delivering anything.
 
+**Chase rate, from the library.**
+
+```
+$ python -m yds_graph lookup "How is chase rate defined in a report?"
+Chase rate. [c3]. The zone is 0.83 feet either side of the middle and from
+1.50 feet to 3.50 feet off the ground [c3].
+
+session=lib-... status=done passages=c3,c1
+```
+
+The answer is retrieved passages plus a citation. Asking who plays shortstop
+on this command returns nothing on file. That question belongs to Bench Coach
+and SQL.
+
 ## What the tests prove
 
 `make test` runs the suite with no network at all.
@@ -249,6 +294,9 @@ records that a person read it rather than delivering anything.
 - The SQL tools refuse anything that is not a single SELECT on their own table.
 - A pitcher id is an identifier, not a statistic: naming OPP-11 in a sentence
   does not fail a draft, while a bare 11 still does.
+- Library: a methodology question retrieves the methodology passage. A roster
+  question retrieves nothing. An invented number is held. Bench Coach still
+  answers shortstop from SQL.
 - Against a local server: a JSON payload buried in prose and a code fence is
   still read, an unreadable answer is retried exactly once, a server that
   rejects `response_format` is asked again without it, and the tool loop reads
@@ -272,7 +320,9 @@ configured, and skip with a message naming what is missing when neither is:
 
 LangGraph on a side project; production agents at work are custom Python and
 MCP. This repo exists to make the rules visible and testable in a form
-somebody else can run, not to claim a framework.
+somebody else can run, not to claim a framework. Grounded retrieval here is a
+local vector store over markdown, with a cite-or-stop check. It is not a
+vector database on live team stats, and the roster is still SQL.
 
 ## Layout
 
@@ -288,8 +338,10 @@ yds_graph/
   report_graph.py      part one
   assistant_graph.py   part two, the Bench Coach graph
   tools.py             Bench Coach's SQL tools and database
+  library.py           local vector store over the staff library
+  library_graph.py     part three, retrieve then cite-or-stop
 scripts/make_sample_data.py
-sample_data/           synthetic exports, roster, schedule, philosophy
+sample_data/           synthetic exports, roster, schedule, philosophy, docs
 tests/
 ```
 

@@ -4,6 +4,7 @@
     python -m yds_graph resume <thread_id> --approve
     python -m yds_graph resume <thread_id> --reject "velocity looks off in game two"
     python -m yds_graph ask "Our shortstop is out this weekend, who can play there?"
+    python -m yds_graph lookup "How is chase rate defined in a report?"
     python -m yds_graph audit
 """
 
@@ -16,7 +17,7 @@ import uuid
 from pathlib import Path
 
 from . import audit as audit_module
-from . import assistant_graph, config, report_graph, tools
+from . import assistant_graph, config, library_graph, report_graph, tools
 
 
 def _new_thread(prefix: str) -> str:
@@ -117,6 +118,19 @@ def cmd_ask(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_lookup(args: argparse.Namespace) -> int:
+    session_id = args.session or _new_thread("lib")
+    result = library_graph.lookup(args.question, session_id)
+    print()
+    print(result.get("answer", ""))
+    print()
+    print(
+        f"session={session_id} status={result.get('status')} "
+        f"passages={','.join(p['id'] for p in result.get('passages') or []) or 'none'}"
+    )
+    return 0 if result.get("status") != "held" else 2
+
+
 def cmd_audit(args: argparse.Namespace) -> int:
     rows = audit_module.read_rows(limit=args.limit)
     print(audit_module.format_table(rows))
@@ -153,6 +167,11 @@ def build_parser() -> argparse.ArgumentParser:
     ask.add_argument("question")
     ask.add_argument("--session", default=None)
     ask.set_defaults(func=cmd_ask)
+
+    lookup = sub.add_parser("lookup", help="ask the staff library (methodology, notes, handbook)")
+    lookup.add_argument("question")
+    lookup.add_argument("--session", default=None)
+    lookup.set_defaults(func=cmd_lookup)
 
     aud = sub.add_parser("audit", help="print the audit table")
     aud.add_argument("--limit", type=int, default=50)
