@@ -1,8 +1,12 @@
-# yds_graph
+# YourDataScouting, as LangGraph
 
-A working model of how a scouting report gets built when a model is in the
-loop, and two staff tools built on the same rules: Bench Coach over SQL, and
-the Library over a local vector store of unstructured docs.
+[YourDataScouting](https://yourdatascouting.com) builds opponent reports for
+college baseball and softball staffs. This repo is a working model of that
+pipeline when a model is in the loop, plus two staff tools on the same rules:
+Bench Coach over SQL, and the Library over a local vector store of
+unstructured docs. The Python package is `yds_graph`. The data here is
+synthetic. No real coach, school, program, player, or vendor appears in it.
+The GitHub repo is [`scouting-graph`](https://github.com/reichenbach/scouting-graph).
 
 Two LangGraph graphs, one doctrine, then a third graph that is allowed to
 retrieve. The report graph turns a pitch tracking export into a one page per
@@ -12,9 +16,6 @@ database and refuses to state a number it cannot trace. The Library graph
 answers methodology and handbook questions from retrieved passages, with the
 same cite-or-stop check. Roster and schedule stay SQL. They are not similarity
 search.
-
-Everything in this repo is synthetic. No real coach, school, program, player
-or vendor appears anywhere in it.
 
 ## The doctrine, in five bullets
 
@@ -318,11 +319,12 @@ configured, and skip with a message naming what is missing when neither is:
 
 ## Honest claim
 
-LangGraph on a side project; production agents at work are custom Python and
-MCP. This repo exists to make the rules visible and testable in a form
-somebody else can run, not to claim a framework. Grounded retrieval here is a
-local vector store over markdown, with a cite-or-stop check. It is not a
-vector database on live team stats, and the roster is still SQL.
+LangGraph on a side project for YourDataScouting; production agents at work
+are custom Python and MCP. This repo exists to make the rules visible and
+testable in a form somebody else can run, not to claim a framework. Grounded
+retrieval here is a local vector store over markdown, with a cite-or-stop
+check. It is not a vector database on live team stats, and the roster is
+still SQL.
 
 ## Layout
 

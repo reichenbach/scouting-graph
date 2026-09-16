@@ -1,7 +1,7 @@
 [project]
 name = "yds-graph"
 version = "0.2.0"
-description = "A LangGraph report pipeline and staff assistant with gates, a facts sheet, and a human in the loop."
+description = "LangGraph model of YourDataScouting: gates, a facts sheet, human review, and cite-or-stop retrieval."
 requires-python = ">=3.11"
 
 [tool.pytest.ini_options]
