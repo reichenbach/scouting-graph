@@ -35,6 +35,25 @@ The sixth rule, which is really the first: the check on the model is code, not
 instructions. The prompt asks for cited numbers. `checks.py` then proves it,
 number by number, and a single number that does not trace back holds the run.
 
+## For coaching staffs
+
+This repository is a working model of the rules. It is not how a staff gets a
+weekend packet. Do not clone it to run your program, and do not put a real
+roster, schedule, or pitch file in it.
+
+College baseball and softball coaches (NCAA Division II, Division III, NAIA,
+JUCO) who want YourDataScouting reports or Bench Coach on their own files
+start at [yourdatascouting.com](https://yourdatascouting.com). Setup for
+invited staffs is
+[yourdatascouting.com/benchcoach/help](https://yourdatascouting.com/benchcoach/help).
+
+If you want help standing that up, email
+[yourdatascouting@gmail.com](mailto:yourdatascouting@gmail.com?subject=YourDataScouting%20-%20my%20program)
+from a program address. Name the school, the sport, and the level. That
+mailbox is for coaches. It is not a public ticket queue. Vendors, recruiting
+services, and high school funnel requests are not answered. Do not open a
+GitHub issue for program setup.
+
 ## The report graph
 
 ```mermaid
