@@ -1,4 +1,4 @@
-"""Command line entry point.
+"""YourDataScouting LangGraph CLI.
 
     python -m yds_graph run inbox/sample.csv --coach sample
     python -m yds_graph resume <thread_id> --approve
