@@ -14,10 +14,10 @@ purpose.
 Nothing from any employer, any client, or any other repo on this machine
 belongs here. Not a file, not a schema, not a system name, not a screenshot.
 
-Coach mail is [yourdatascouting.com](https://yourdatascouting.com) and
-yourdatascouting@gmail.com, from a program address, college staffs only.
-Do not add a GitHub Issues setup path, a high school funnel, or a vendor
-contact form to this repo.
+Coach contact is the form on
+[yourdatascouting.com](https://yourdatascouting.com/#get-started), college
+staffs only. Do not put an email address, a GitHub Issues setup path, a
+high school funnel, or a vendor contact form in this repo.
 
 ## Synthetic data only
 
