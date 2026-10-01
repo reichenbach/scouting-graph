@@ -100,7 +100,7 @@ excerpt, the staff philosophy.
 ```mermaid
 flowchart TD
     START([question]) --> retrieve
-    retrieve[retrieve<br/>TF-IDF vectors in SQLite, top passages or none] --> draft
+    retrieve[retrieve<br/>TF-IDF or local embedding vectors in SQLite, top passages or none] --> draft
     draft[draft<br/>model writes from those passages only] --> post_check
     post_check[post_check<br/>every number must appear in a cited passage]
     post_check -->|number not grounded, first time| draft
@@ -108,6 +108,33 @@ flowchart TD
     post_check -->|clean| persist
     persist[persist<br/>audit row] --> DONE([end])
     hold_answer[hold_answer<br/>refuses to answer, audit row] --> DONE
+```
+
+## Library retrieval: TF-IDF or local embeddings
+
+The Library store is a SQLite table of passages with one vector per passage.
+By default, and always in CI, those vectors are TF-IDF built from the corpus
+on the spot. Set `YDS_LIBRARY_VECTORS=embeddings` and they come from a local
+embedding model instead, `nomic-embed-text` on ollama unless
+`YDS_EMBED_MODEL` names another, through the same OpenAI compatible server at
+`YDS_MODEL_BASE_URL`.
+
+The question is always vectorized by the same vectorizer that built the
+index. The store records which vectorizer, model and dimension built it, and
+on a mismatch it rebuilds rather than compare vectors from two spaces.
+Each space has its own score floor, because an embedding model scores
+unrelated text well above zero.
+Everything after retrieval is identical on both: passage ids, the rule that a
+passage must share a content word with the question, cite-or-stop, and the
+audit row. The offline tests run the cite and refuse cases on TF-IDF and on a
+deterministic fake embedder, and one `live` test runs them on real local
+embeddings. No hosted API, no key, no cost.
+
+```bash
+ollama pull nomic-embed-text
+export YDS_MODEL_BASE_URL=http://localhost:11434/v1
+export YDS_LIBRARY_VECTORS=embeddings
+.venv/bin/python -m pytest -m live -k embed -rs
 ```
 
 ## Running it
@@ -178,10 +205,12 @@ export YDS_MODEL_BASE_URL=http://localhost:8080/v1   # ollama: http://localhost:
 export YDS_MODEL_NAME=your-model-name                # llama.cpp is happy with any name
 # export YDS_MODEL_API_KEY=none                      # llama.cpp ignores it
 # export YDS_MODEL_BACKEND=openai_compat             # only needed to force the choice
+# export YDS_LIBRARY_VECTORS=embeddings              # Library vectors: tfidf (default) or embeddings
+# export YDS_EMBED_MODEL=nomic-embed-text            # embedding model, the default shown
 ```
 
 With no `ANTHROPIC_API_KEY` set, `YDS_MODEL_BASE_URL` is enough. A key still
-holding the placeholder from `.env.example` counts as no key. The three
+holding the placeholder from `.env.example` counts as no key. These
 variables also work in `.env`.
 
 Then everything runs the same way:

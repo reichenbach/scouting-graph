@@ -72,3 +72,54 @@ def live_backend_or_skip():
     except Exception as exc:  # noqa: BLE001 - any failure here means "not reachable"
         pytest.skip(f"local model server at {base_url} is not reachable: {exc}")
     return config.live_backend_description()
+
+
+class FakeEmbedder:
+    """A deterministic stand in for a local embedding model.
+
+    Same interface as library.EmbeddingsVectorizer, fixed small dimension, no
+    network: each token is hashed into one of DIM buckets. It is not a good
+    embedding. It exists so CI proves the embeddings plumbing (a stored model
+    name and dimension, a query vectorized by the same thing, the same cite and
+    refuse behaviour) without ollama.
+    """
+
+    DIM = 64
+    name = "embeddings"
+    model = "fake-hash-64"
+    min_score = 0.12
+
+    def _vec(self, text: str) -> list[float]:
+        import hashlib
+
+        from yds_graph import library
+
+        vec = [0.0] * self.DIM
+        for token in library.tokenize(text):
+            bucket = int(hashlib.sha256(token.encode()).hexdigest(), 16) % self.DIM
+            vec[bucket] += 1.0
+        return library._l2_normalize(vec)
+
+    def fit(self, texts):
+        return [self._vec(t) for t in texts]
+
+    def embed_query(self, text):
+        return self._vec(text)
+
+    def state(self):
+        return {}
+
+    def load_state(self, state):
+        return None
+
+
+@pytest.fixture(params=["tfidf", "fake_embeddings"])
+def vectors(request, home, monkeypatch):
+    """Run a library test once on TF-IDF and once on the fake embedder."""
+    from yds_graph import library
+
+    if request.param == "fake_embeddings":
+        monkeypatch.setattr(library, "get_vectorizer", FakeEmbedder)
+    else:
+        monkeypatch.setenv("YDS_LIBRARY_VECTORS", "tfidf")
+    return request.param

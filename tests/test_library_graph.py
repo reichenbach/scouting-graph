@@ -6,6 +6,9 @@
 - a cited answer traces every number to a retrieved passage
 - an invented number is caught, retried once, and then held
 - Bench Coach still answers "who plays shortstop" from SQL
+- the cite and refuse tests run twice, on TF-IDF and on a fake embedder, so
+  the doctrine does not depend on which vectorizer built the index
+- an index built by one vectorizer is rebuilt, not compared, by another
 """
 
 from __future__ import annotations
@@ -15,7 +18,7 @@ import pytest
 from yds_graph import audit, assistant_graph, checks, library, library_graph, tools
 
 
-def test_chase_rate_retrieves_methodology(home):
+def test_chase_rate_retrieves_methodology(home, vectors):
     hits = library.retrieve(
         "How is chase rate defined in a report?",
         sample_dir=home / "sample_data",
@@ -29,7 +32,7 @@ def test_chase_rate_retrieves_methodology(home):
     assert "outside the strike zone" in combined
 
 
-def test_shortstop_question_retrieves_nothing_from_the_library(home):
+def test_shortstop_question_retrieves_nothing_from_the_library(home, vectors):
     hits = library.retrieve(
         "Who else has played shortstop for us?",
         sample_dir=home / "sample_data",
@@ -38,7 +41,7 @@ def test_shortstop_question_retrieves_nothing_from_the_library(home):
     assert hits == []
 
 
-def test_lookup_chase_rate_cites_a_passage_and_writes_an_audit_row(home, monkeypatch):
+def test_lookup_chase_rate_cites_a_passage_and_writes_an_audit_row(home, vectors, monkeypatch):
     monkeypatch.setenv("YDS_GRAPH_STUB", "1")
     result = library_graph.lookup("How is chase rate defined in a report?", "lib-chase")
 
@@ -71,7 +74,7 @@ def test_live_library_answer_passes_the_same_check(home, monkeypatch, capsys):
         assert result["passages"]
 
 
-def test_lookup_invented_number_is_held_after_one_retry(home, monkeypatch):
+def test_lookup_invented_number_is_held_after_one_retry(home, vectors, monkeypatch):
     monkeypatch.setenv("YDS_GRAPH_STUB", "fabricate")
     result = library_graph.lookup("How is a weekend series structured?", "lib-fab")
 
@@ -83,7 +86,7 @@ def test_lookup_invented_number_is_held_after_one_retry(home, monkeypatch):
     assert row["outcome"] == "HOLD"
 
 
-def test_lookup_does_not_answer_a_roster_question_from_the_library(home, monkeypatch):
+def test_lookup_does_not_answer_a_roster_question_from_the_library(home, vectors, monkeypatch):
     monkeypatch.setenv("YDS_GRAPH_STUB", "1")
     result = library_graph.lookup(
         "Who else has played shortstop for us?", "lib-ss"
@@ -110,7 +113,7 @@ def test_bench_coach_still_answers_shortstop_from_sql(home, checkpointer):
     assert "Cedar" in result["answer"] or "SS" in result["answer"]
 
 
-def test_schedule_question_does_not_retrieve_handbook_travel(home):
+def test_schedule_question_does_not_retrieve_handbook_travel(home, vectors):
     hits = library.retrieve(
         "When do we play Opponent A?",
         sample_dir=home / "sample_data",
@@ -137,3 +140,77 @@ def test_check_rejects_an_uncited_invented_number():
         "Chase rate is 41.7 percent of the time.", passages
     )
     assert any(v.kind == "uncited_number" for v in violations)
+
+
+def test_index_built_by_another_vectorizer_is_rebuilt(home):
+    from conftest import FakeEmbedder
+
+    path = home / "state" / "library.sqlite"
+    library.build_index(path, sample_dir=home / "sample_data")
+    _, meta = library._load(path)
+    assert meta["vectorizer"] == "tfidf"
+
+    hits = library.retrieve(
+        "How is chase rate defined in a report?",
+        path=path,
+        vectorizer=FakeEmbedder(),
+    )
+    _, meta = library._load(path)
+    assert meta["vectorizer"] == "embeddings"
+    assert meta["model"] == "fake-hash-64"
+    assert meta["dim"] == FakeEmbedder.DIM
+    assert "methodology.md" in {row["source"] for row in hits}
+
+
+def test_library_vectors_switch_defaults_to_tfidf_and_rejects_typos(monkeypatch):
+    from yds_graph import config
+
+    monkeypatch.delenv("YDS_LIBRARY_VECTORS", raising=False)
+    assert config.library_vectors() == "tfidf"
+    assert isinstance(library.get_vectorizer(), library.TfidfVectorizer)
+    monkeypatch.setenv("YDS_LIBRARY_VECTORS", "embedings")
+    with pytest.raises(ValueError):
+        config.library_vectors()
+
+
+@pytest.mark.live
+def test_live_embeddings_cite_and_refuse(home, monkeypatch, capsys):
+    """Real vectors from a local embedding model, same cite and refuse rules.
+
+    Retrieval only, plus the stub writer, so this needs an embeddings endpoint
+    and nothing else. Run with: pytest -m live -k embed -rs
+    """
+    import httpx
+
+    from yds_graph import config
+
+    config._load_env()
+    base_url = config.model_base_url() or "http://localhost:11434/v1"
+    monkeypatch.setenv("YDS_MODEL_BASE_URL", base_url)
+    monkeypatch.setenv("YDS_LIBRARY_VECTORS", "embeddings")
+    monkeypatch.setenv("YDS_GRAPH_STUB", "1")
+    try:
+        httpx.post(
+            base_url + "/embeddings",
+            json={"model": config.embed_model(), "input": ["ping"]},
+            timeout=10.0,
+        ).raise_for_status()
+    except Exception as exc:  # noqa: BLE001 - any failure here means "not reachable"
+        pytest.skip(f"no embeddings at {base_url} for {config.embed_model()}: {exc}")
+
+    cited = library_graph.lookup("How is chase rate defined in a report?", "lib-embed")
+    refused = library_graph.lookup("Who else has played shortstop for us?", "lib-embed-ss")
+    with capsys.disabled():
+        print(f"\n[live] embeddings: {config.embed_model()} at {base_url}")
+        print(f"[live] cited passages: {[(p['id'], p['score']) for p in cited['passages']]}")
+        print(f"[live] refusal: {refused['answer']}")
+
+    _, meta = library._load(home / "state" / "library.sqlite")
+    assert meta["vectorizer"] == "embeddings"
+    assert meta["model"] == config.embed_model()
+    assert cited["status"] == "done"
+    assert "methodology.md" in {p["source"] for p in cited["passages"]}
+    assert checks.LIBRARY_CITATION_RE.search(cited["answer"])
+    assert checks.check_library_answer(cited["answer"], cited["passages"]) == []
+    assert refused["passages"] == []
+    assert "nothing on file" in refused["answer"].lower()
