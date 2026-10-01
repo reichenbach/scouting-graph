@@ -1,3 +1,5 @@
+[![test](https://github.com/reichenbach/scouting-graph/actions/workflows/test.yml/badge.svg)](https://github.com/reichenbach/scouting-graph/actions/workflows/test.yml)
+
 # YourDataScouting, as LangGraph
 
 [YourDataScouting](https://yourdatascouting.com) builds opponent reports for
@@ -289,6 +291,27 @@ session=lib-... status=done passages=c3,c1
 The answer is retrieved passages plus a citation. Asking who plays shortstop
 on this command returns nothing on file. That question belongs to Bench Coach
 and SQL.
+
+## The model cannot invent a number, and CI proves it
+
+[`tests/test_golden.py`](tests/test_golden.py) is a golden set: five inputs,
+each with the outcome it must produce. It runs on every push, offline, on a
+stub model, so it needs no key and no network. If a change lets any case end
+differently, the badge at the top of this page turns red.
+
+1. **A clean file passes.** It clears every data check and the number check,
+   then stops and waits for a person to approve it. Nothing is sent before that.
+2. **A file missing a required column is held.** It stops at the first check.
+   No numbers are computed and nothing is sent.
+3. **A file with too little data is held.** Too few games and too few pitches,
+   so it stops at the same first check.
+4. **A draft with a number that has no source is held.** The draft says a
+   pitcher worked ahead in the count 61 percent of the time, with no fact id
+   behind it. Code rejects the draft, the model gets one more try, and when
+   that fails the report is held.
+5. **A library question with nothing on file is refused.** The search finds
+   no passage, so the answer says there is nothing on file and states no
+   number. It does not guess.
 
 ## What the tests prove
 
