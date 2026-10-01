@@ -149,8 +149,10 @@ network, which is how the tests run.
 
 `make test`, `make run-sample`, `make ask` and `make lookup` wrap the common ones.
 
-GitHub Actions runs the offline suite on every push. `Dockerfile` runs the
-same suite: `docker build -t yds-graph . && docker run --rm yds-graph`.
+GitHub Actions runs the offline suite on every push, twice: once on the
+runner, and once inside the image built from `Dockerfile`. The same two
+commands work on any machine with Docker:
+`docker build -t yds-graph . && docker run --rm yds-graph`.
 
 ## Run it for free on a local model
 
