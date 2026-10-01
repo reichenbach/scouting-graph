@@ -50,12 +50,22 @@ MAX_SENTENCES = 7
 NUMBER_TOLERANCE = 0.55
 
 # Library graph: retrieve this many passages, drop anything below the score.
-# The store is TF-IDF vectors in SQLite. Roster and schedule stay SQL.
+# By default the store is TF-IDF vectors in SQLite. Roster and schedule stay SQL.
 # A chunk also has to share a content word (5+ letters) with the question,
 # so "who plays shortstop" does not retrieve a parent-message passage.
 LIBRARY_TOP_K = 4
 LIBRARY_MIN_SCORE = 0.12
 LIBRARY_OVERLAP_MIN_LEN = 5
+
+# Which vectors the library store holds. TF-IDF is the default and the CI
+# path. "embeddings" asks a local OpenAI compatible /v1/embeddings endpoint
+# (ollama at YDS_MODEL_BASE_URL) instead. Dense embeddings put unrelated text
+# far above zero, so that space gets its own score floor. Everything after the
+# score floor (the overlap rule, cite-or-stop, the audit row) is shared code.
+VECTORS_TFIDF = "tfidf"
+VECTORS_EMBEDDINGS = "embeddings"
+DEFAULT_EMBED_MODEL = "nomic-embed-text"
+LIBRARY_MIN_SCORE_EMBEDDINGS = 0.5
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -224,3 +234,20 @@ def live_backend_description() -> str:
         base = model_base_url() or "(no YDS_MODEL_BASE_URL)"
         return f"openai_compat {model_name() or '(no YDS_MODEL_NAME)'} at {base}"
     return "stub"
+
+
+def library_vectors() -> str:
+    """tfidf (default, offline) or embeddings (a local embedding model)."""
+    _load_env()
+    choice = os.environ.get("YDS_LIBRARY_VECTORS", "").strip().lower() or VECTORS_TFIDF
+    if choice not in (VECTORS_TFIDF, VECTORS_EMBEDDINGS):
+        raise ValueError(
+            f"YDS_LIBRARY_VECTORS={choice!r} is not one of "
+            f"{VECTORS_TFIDF}, {VECTORS_EMBEDDINGS}."
+        )
+    return choice
+
+
+def embed_model() -> str:
+    _load_env()
+    return os.environ.get("YDS_EMBED_MODEL", "").strip() or DEFAULT_EMBED_MODEL

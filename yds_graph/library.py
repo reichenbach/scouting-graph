@@ -2,14 +2,21 @@
 
 Roster, schedule and opponent facts stay in SQL. This module is only for
 unstructured passages a coach would ask about: methodology, how a note is
-written, a conference handbook excerpt, the staff philosophy. Retrieval is
-TF-IDF cosine similarity. The generate step still has to cite a passage, and
-checks.py still has to prove every number.
+written, a conference handbook excerpt, the staff philosophy. The generate
+step still has to cite a passage, and checks.py still has to prove every
+number.
 
 The store is a SQLite table of chunks plus a dense float vector per chunk.
-There is no hosted embedding API in the test path, so the vectors are built
-here from the corpus. That is enough for a small library and it keeps
-`make test` offline.
+Two vectorizers can build those vectors, chosen by YDS_LIBRARY_VECTORS:
+
+- tfidf, the default and the test path: TF-IDF built here from the corpus,
+  no network, no model
+- embeddings: a local embedding model behind an OpenAI compatible
+  /v1/embeddings endpoint, for example ollama with nomic-embed-text
+
+Retrieval is cosine similarity either way. The query is always vectorized by
+the same vectorizer that built the index, and the passage ids, the overlap
+rule, cite-or-stop and the audit row do not know which one ran.
 """
 
 from __future__ import annotations
@@ -124,10 +131,72 @@ def _cosine(a: list[float], b: list[float]) -> float:
     return float(sum(x * y for x, y in zip(a, b)))
 
 
+class TfidfVectorizer:
+    """Today's default. Fitted on the corpus, so its vocab and idf are stored."""
+
+    name = config.VECTORS_TFIDF
+    model = "tfidf"
+    min_score = config.LIBRARY_MIN_SCORE
+
+    def __init__(self) -> None:
+        self.vocab: list[str] = []
+        self.idf: dict[str, float] = {}
+
+    def fit(self, texts: list[str]) -> list[list[float]]:
+        tokenized = [tokenize(t) for t in texts]
+        self.vocab, self.idf = _vocab_and_idf(tokenized)
+        return [_l2_normalize(_tfidf_vector(t, self.vocab, self.idf)) for t in tokenized]
+
+    def embed_query(self, text: str) -> list[float]:
+        return _l2_normalize(_tfidf_vector(tokenize(text), self.vocab, self.idf))
+
+    def state(self) -> dict:
+        return {"vocab": self.vocab, "idf": self.idf}
+
+    def load_state(self, state: dict) -> None:
+        self.vocab = state["vocab"]
+        self.idf = state["idf"]
+
+
+class EmbeddingsVectorizer:
+    """A local embedding model. Nothing to fit, so nothing extra is stored."""
+
+    name = config.VECTORS_EMBEDDINGS
+    min_score = config.LIBRARY_MIN_SCORE_EMBEDDINGS
+
+    def __init__(self, model: str | None = None) -> None:
+        self.model = model or config.embed_model()
+
+    def _embed(self, texts: list[str]) -> list[list[float]]:
+        from .model import openai_embed
+
+        return [_l2_normalize(v) for v in openai_embed(texts, self.model)]
+
+    def fit(self, texts: list[str]) -> list[list[float]]:
+        return self._embed(texts)
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._embed([text])[0]
+
+    def state(self) -> dict:
+        return {}
+
+    def load_state(self, state: dict) -> None:
+        return None
+
+
+def get_vectorizer():
+    """The vectorizer named by YDS_LIBRARY_VECTORS. tfidf unless told otherwise."""
+    if config.library_vectors() == config.VECTORS_EMBEDDINGS:
+        return EmbeddingsVectorizer()
+    return TfidfVectorizer()
+
+
 def build_index(
-    path: Path | None = None, sample_dir: Path | None = None
+    path: Path | None = None, sample_dir: Path | None = None, vectorizer=None
 ) -> Path:
     """Rebuild the library from the markdown on disk. Small corpus, so always rebuild."""
+    vectorizer = vectorizer or get_vectorizer()
     db_path = Path(path) if path else library_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     raw_chunks: list[dict] = []
@@ -136,12 +205,17 @@ def build_index(
     if not raw_chunks:
         raise RuntimeError("the staff library has no markdown to index")
 
-    tokenized = [tokenize(ch["text"]) for ch in raw_chunks]
-    vocab, idf = _vocab_and_idf(tokenized)
+    vectors = vectorizer.fit([ch["text"] for ch in raw_chunks])
     for index, chunk in enumerate(raw_chunks, start=1):
         chunk["id"] = f"c{index}"
-        chunk["vector"] = _l2_normalize(_tfidf_vector(tokenized[index - 1], vocab, idf))
+        chunk["vector"] = vectors[index - 1]
 
+    meta = {
+        "vectorizer": vectorizer.name,
+        "model": vectorizer.model,
+        "dim": len(vectors[0]),
+        "state": vectorizer.state(),
+    }
     conn = sqlite3.connect(db_path)
     with conn:
         conn.execute("DROP TABLE IF EXISTS chunks")
@@ -151,12 +225,10 @@ def build_index(
             "id TEXT PRIMARY KEY, source TEXT, heading TEXT, text TEXT, vector TEXT)"
         )
         conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
-        conn.execute(
-            "INSERT INTO meta (key, value) VALUES ('vocab', ?)", (json.dumps(vocab),)
-        )
-        conn.execute(
-            "INSERT INTO meta (key, value) VALUES ('idf', ?)", (json.dumps(idf),)
-        )
+        for key, value in meta.items():
+            conn.execute(
+                "INSERT INTO meta (key, value) VALUES (?, ?)", (key, json.dumps(value))
+            )
         for chunk in raw_chunks:
             conn.execute(
                 "INSERT INTO chunks (id, source, heading, text, vector) VALUES (?,?,?,?,?)",
@@ -172,22 +244,21 @@ def build_index(
     return db_path
 
 
-def _load(path: Path | None = None) -> tuple[list[dict], list[str], dict[str, float]]:
-    db_path = Path(path) if path else library_db_path()
-    if not db_path.exists():
-        build_index(db_path)
+def _load(db_path: Path) -> tuple[list[dict], dict]:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT id, source, heading, text, vector FROM chunks ORDER BY id"
-    ).fetchall()
-    vocab = json.loads(
-        conn.execute("SELECT value FROM meta WHERE key = 'vocab'").fetchone()[0]
-    )
-    idf = json.loads(
-        conn.execute("SELECT value FROM meta WHERE key = 'idf'").fetchone()[0]
-    )
-    conn.close()
+    try:
+        rows = conn.execute(
+            "SELECT id, source, heading, text, vector FROM chunks ORDER BY id"
+        ).fetchall()
+        meta = {
+            row["key"]: json.loads(row["value"])
+            for row in conn.execute("SELECT key, value FROM meta")
+        }
+    except sqlite3.Error:
+        rows, meta = [], {}
+    finally:
+        conn.close()
     chunks = [
         {
             "id": row["id"],
@@ -198,7 +269,11 @@ def _load(path: Path | None = None) -> tuple[list[dict], list[str], dict[str, fl
         }
         for row in rows
     ]
-    return chunks, vocab, idf
+    return chunks, meta
+
+
+def _built_by(meta: dict, vectorizer) -> bool:
+    return meta.get("vectorizer") == vectorizer.name and meta.get("model") == vectorizer.model
 
 
 def retrieve(
@@ -208,23 +283,41 @@ def retrieve(
     min_score: float | None = None,
     path: Path | None = None,
     sample_dir: Path | None = None,
+    vectorizer=None,
 ) -> list[dict]:
     """Return the top passages for a question, or an empty list.
 
     An empty list is a real answer: the library does not have a passage, so
     the graph must refuse rather than guess.
     """
+    vectorizer = vectorizer or get_vectorizer()
     db_path = Path(path) if path else library_db_path()
     if sample_dir is not None or not db_path.exists():
-        build_index(db_path, sample_dir=sample_dir)
-    chunks, vocab, idf = _load(db_path)
+        build_index(db_path, sample_dir=sample_dir, vectorizer=vectorizer)
+    chunks, meta = _load(db_path)
+    # Vectors from two different spaces (TF-IDF and an embedding model, or two
+    # embedding models) are not comparable, and a cosine across them is a
+    # confident looking number that means nothing. So the store records which
+    # vectorizer, model and dimension built it, and on any mismatch the index
+    # is rebuilt with the current vectorizer instead of being compared.
+    if not chunks or not _built_by(meta, vectorizer):
+        build_index(db_path, sample_dir=sample_dir, vectorizer=vectorizer)
+        chunks, meta = _load(db_path)
+    vectorizer.load_state(meta.get("state") or {})
+    query = vectorizer.embed_query(question)
+    if len(query) != meta.get("dim"):
+        build_index(db_path, sample_dir=sample_dir, vectorizer=vectorizer)
+        chunks, meta = _load(db_path)
+        vectorizer.load_state(meta.get("state") or {})
+        query = vectorizer.embed_query(question)
+
+    floor = min_score if min_score is not None else vectorizer.min_score
     query_tokens = tokenize(question)
-    query = _l2_normalize(_tfidf_vector(query_tokens, vocab, idf))
     content_terms = {t for t in query_tokens if len(t) >= config.LIBRARY_OVERLAP_MIN_LEN}
     ranked = []
     for chunk in chunks:
         score = _cosine(query, chunk["vector"])
-        if score < (min_score if min_score is not None else config.LIBRARY_MIN_SCORE):
+        if score < floor:
             continue
         if content_terms and not content_terms.intersection(tokenize(chunk["text"])):
             continue

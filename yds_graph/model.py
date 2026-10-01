@@ -357,6 +357,49 @@ def openai_chat(
         ) from exc
 
 
+def openai_embed(texts: list[str], model_name: str) -> list[list[float]]:
+    """Vectors from an OpenAI compatible /v1/embeddings endpoint, in input order.
+
+    Used only when YDS_LIBRARY_VECTORS=embeddings. Same base URL and bearer
+    token as the chat path, so ollama on this machine answers both.
+    """
+    import httpx
+
+    base_url = config.model_base_url()
+    if not base_url:
+        raise ModelTransportError(
+            "YDS_LIBRARY_VECTORS=embeddings needs YDS_MODEL_BASE_URL, for "
+            "example http://localhost:11434/v1 for ollama."
+        )
+    url = base_url + "/embeddings"
+    headers = {"Authorization": f"Bearer {config.model_api_key()}"}
+    try:
+        response = httpx.post(
+            url,
+            json={"model": model_name, "input": list(texts)},
+            headers=headers,
+            timeout=config.LOCAL_TIMEOUT_SECONDS,
+        )
+    except httpx.HTTPError as exc:
+        raise ModelTransportError(f"could not reach {url}: {exc}") from exc
+    if response.status_code >= 400:
+        raise ModelTransportError(
+            f"{url} returned {response.status_code}: {response.text[:400]}"
+        )
+    try:
+        rows = sorted(response.json()["data"], key=lambda row: row["index"])
+        vectors = [[float(v) for v in row["embedding"]] for row in rows]
+    except (ValueError, KeyError, TypeError) as exc:
+        raise ModelTransportError(
+            f"unexpected response from {url}: {response.text[:400]}"
+        ) from exc
+    if len(vectors) != len(texts):
+        raise ModelTransportError(
+            f"{url} returned {len(vectors)} vectors for {len(texts)} inputs"
+        )
+    return vectors
+
+
 def openai_write_notes(facts_sheet: dict, feedback: str | None = None) -> dict[str, str]:
     """The notes step against a local model, one pitcher at a time."""
     out: dict[str, str] = {}
