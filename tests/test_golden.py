@@ -45,7 +45,7 @@ GOLDEN = [
     ("clean_sample", "inbox/sample.csv", "pass", "review", None),
     ("bad_schema", "sample_data/bad_schema.csv", "hold", "validate", "missing_columns"),
     ("thin_coverage", "sample_data/thin_coverage.csv", "hold", "validate", "too_few_games"),
-    ("uncited_number", "inbox/sample.csv", "pass", "write_notes", "uncited_number"),
+    ("uncited_number", "inbox/sample.csv", "hold", "write_notes", "uncited_number"),
     ("library_miss", "When do we play Opponent A?", "refuse", "retrieve", None),
 ]
 
