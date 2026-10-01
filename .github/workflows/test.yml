@@ -16,3 +16,12 @@ jobs:
         run: pip install -r requirements.txt
       - name: Offline suite
         run: python -m pytest
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -t yds-graph .
+      - name: Run the offline suite inside it
+        run: docker run --rm yds-graph
