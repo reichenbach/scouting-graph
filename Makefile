@@ -1,6 +1,6 @@
 PY := .venv/bin/python
 
-.PHONY: help venv data test run-sample ask lookup audit clean
+.PHONY: help venv data test run-sample ask lookup audit hitl-demo clean
 
 help:
 	@echo "make venv        create .venv and install pinned deps"
@@ -10,6 +10,7 @@ help:
 	@echo "make ask         ask the staff assistant a sample question with the stub model"
 	@echo "make lookup      ask the staff library a methodology question with the stub model"
 	@echo "make audit       print the audit table"
+	@echo "make hitl-demo   interrupt → approve → audit (stub; see docs/HITL_WALKTHROUGH.md)"
 
 venv:
 	python3 -m venv .venv
@@ -33,6 +34,15 @@ lookup:
 
 audit:
 	$(PY) -m yds_graph audit
+
+hitl-demo:
+	@set -e; \
+	out=$$(YDS_GRAPH_STUB=1 $(PY) -m yds_graph run inbox/sample.csv --coach sample); \
+	echo "$$out"; \
+	tid=$$(printf '%s\n' "$$out" | sed -n 's/^thread_id: //p'); \
+	test -n "$$tid"; \
+	YDS_GRAPH_STUB=1 $(PY) -m yds_graph resume "$$tid" --approve; \
+	$(PY) -m yds_graph audit --limit 5
 
 clean:
 	rm -rf outbox errors state audit.sqlite .pytest_cache

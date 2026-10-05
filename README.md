@@ -137,6 +137,18 @@ export YDS_LIBRARY_VECTORS=embeddings
 .venv/bin/python -m pytest -m live -k embed -rs
 ```
 
+## HITL walkthrough (interrupt → approve → audit)
+
+Doctrine items 4 and 5 in three commands, offline, synthetic data. Full page:
+[docs/HITL_WALKTHROUGH.md](docs/HITL_WALKTHROUGH.md). Shortcut: `make hitl-demo`.
+
+```bash
+YDS_GRAPH_STUB=1 .venv/bin/python -m yds_graph run inbox/sample.csv --coach sample
+# pauses: copy thread_id from the PAUSED FOR HUMAN REVIEW block
+YDS_GRAPH_STUB=1 .venv/bin/python -m yds_graph resume <thread_id> --approve
+.venv/bin/python -m yds_graph audit
+```
+
 ## Running it
 
 ```bash
