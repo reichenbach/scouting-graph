@@ -5,7 +5,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY pyproject.toml Makefile ./
+COPY pyproject.toml Makefile README.md ./
+COPY docs ./docs
 COPY yds_graph ./yds_graph
 COPY scripts ./scripts
 COPY sample_data ./sample_data
