@@ -139,28 +139,32 @@ export YDS_LIBRARY_VECTORS=embeddings
 
 ## HITL walkthrough (interrupt → approve → audit)
 
-Doctrine items 4 and 5 in three commands, offline, synthetic data. Full page:
-[docs/HITL_WALKTHROUGH.md](docs/HITL_WALKTHROUGH.md). Shortcut: `make hitl-demo`.
+Doctrine items 4 and 5 in three commands, offline, synthetic data, no API key.
+Do the setup on [docs/HITL_WALKTHROUGH.md](docs/HITL_WALKTHROUGH.md) first.
+After that, `make hitl-demo` runs interrupt, approve, and the audit table.
+The `approve` line the run prints is safe to paste.
 
 ```bash
 YDS_GRAPH_STUB=1 .venv/bin/python -m yds_graph run inbox/sample.csv --coach sample
-# pauses: copy thread_id from the PAUSED FOR HUMAN REVIEW block
+# pauses: paste the approve line from the PAUSED FOR HUMAN REVIEW block
 YDS_GRAPH_STUB=1 .venv/bin/python -m yds_graph resume <thread_id> --approve
 .venv/bin/python -m yds_graph audit
 ```
 
 ## Running it
 
+Python 3.11 or newer. On Debian or Ubuntu, `python3 -m venv` fails until `python3-venv` is installed (`sudo apt install python3-venv`).
+
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python scripts/make_sample_data.py      # seeded synthetic data
-cp .env.example .env                              # then put a key in it
+cp .env.example .env                              # only for a hosted model; the stub needs no key
 ```
 
-Everything below runs against the real model. Prefix any command with
+The commands below call the hosted model when a real key is in `.env`. Prefix any command with
 `YDS_GRAPH_STUB=1` to run the entire pipeline with a deterministic stub and no
-network, which is how the tests run.
+network, which is how the tests and `make hitl-demo` run. A key is not required for that path.
 
 ```bash
 # a clean file: pauses for review
@@ -315,7 +319,7 @@ PAUSED FOR HUMAN REVIEW
 ========================================================================
 { "kind": "message_review", "drafts": ["kind=parents\nstatus=NEEDS HUMAN REVIEW..."] }
 
-  approve: python -m yds_graph resume ask-9887767da5 --approve
+  approve: .venv/bin/python -m yds_graph resume ask-9887767da5 --approve
 ```
 
 The graph stops. There is no send path in this program at all, and approving
