@@ -1,4 +1,4 @@
-# HITL walkthrough: interrupt → approve → audit
+# Human review walkthrough: interrupt, approve, audit
 
 This is the recruiter-followable demo for doctrine items 4 and 5: a real
 LangGraph interrupt, a human decision, and an audit row. Synthetic data only.
@@ -99,12 +99,12 @@ PDF leaves.
 ## Makefile shortcut
 
 ```bash
-make hitl-demo
+make review-demo
 ```
 
-Runs interrupt → approve → audit with the stub model and prints the latest
+Runs interrupt, approve, and audit with the stub model and prints the latest
 audit rows.
 
 ## Without a terminal
 
-The desktop app runs this same loop. Download it from a GitHub Release, or from the artifacts on the desktop workflow. Setup and the unsigned-app prompts are in the Desktop app section of the README. Stub mode is the default there too. No API key.
+YDS Review runs this same loop. Download it from a GitHub Release, or from the artifacts on the YDS Review workflow. Setup and the unsigned-app prompts are in the Desktop app section of the README. Stub mode is the default there too. No API key.

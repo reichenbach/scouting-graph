@@ -60,14 +60,14 @@ def test_linux_app_data_dir(monkeypatch):
     monkeypatch.delenv("YDS_APP_DATA", raising=False)
     monkeypatch.delenv("XDG_DATA_HOME", raising=False)
     monkeypatch.setattr(paths.Path, "home", lambda: Path("/home/reviewer"))
-    assert paths.platform_app_data_dir() == Path("/home/reviewer/.local/share/yourdatascouting")
+    assert paths.platform_app_data_dir() == Path("/home/reviewer/.local/share/yds-review")
 
 
 def test_xdg_app_data_dir(monkeypatch, tmp_path):
     monkeypatch.setattr(paths.sys, "platform", "linux")
     monkeypatch.delenv("YDS_APP_DATA", raising=False)
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
-    assert paths.platform_app_data_dir() == tmp_path / "xdg" / "yourdatascouting"
+    assert paths.platform_app_data_dir() == tmp_path / "xdg" / "yds-review"
 
 
 def test_macos_app_data_dir(monkeypatch):
@@ -75,7 +75,7 @@ def test_macos_app_data_dir(monkeypatch):
     monkeypatch.delenv("YDS_APP_DATA", raising=False)
     monkeypatch.setattr(paths.Path, "home", lambda: Path("/Users/reviewer"))
     found = paths.platform_app_data_dir()
-    assert found == Path("/Users/reviewer/Library/Application Support/YourDataScouting")
+    assert found == Path("/Users/reviewer/Library/Application Support/YDS Review")
 
 
 def test_windows_app_data_dir(monkeypatch):
@@ -83,7 +83,7 @@ def test_windows_app_data_dir(monkeypatch):
     monkeypatch.delenv("YDS_APP_DATA", raising=False)
     monkeypatch.setenv("APPDATA", r"C:\Users\reviewer\AppData\Roaming")
     found = paths.platform_app_data_dir()
-    assert found == Path(r"C:\Users\reviewer\AppData\Roaming") / "YourDataScouting"
+    assert found == Path(r"C:\Users\reviewer\AppData\Roaming") / "YDS Review"
 
 
 def test_app_data_override(monkeypatch, tmp_path):
@@ -305,11 +305,26 @@ def test_page_is_local_and_has_the_review_actions():
     for text in (html, script, style):
         assert "https://" not in text
         assert "http://" not in text
+    assert "<title>YDS Review</title>" in html
+    assert "<h1>YDS Review</h1>" in html
+    assert "HITL" not in html
     assert "Approve" in html
     assert "Reject" in html
     assert "Open the PDF" in html
     assert "Use the sample file" in html
     assert "Audit" in html
+
+
+def test_human_review_is_not_branded_hitl():
+    readme = (REPO / "README.md").read_text(encoding="utf-8")
+    walk = (REPO / "docs" / "REVIEW_WALKTHROUGH.md").read_text(encoding="utf-8")
+    makefile = (REPO / "Makefile").read_text(encoding="utf-8")
+    assert "HITL" not in readme
+    assert "HITL" not in walk
+    assert "make review-demo" in readme
+    assert "review-demo:" in makefile
+    assert "hitl-demo is deprecated" in makefile
+    assert not (REPO / "docs" / "HITL_WALKTHROUGH.md").exists()
 
 
 def _http(base: str, method: str, path: str, payload: dict | None = None):

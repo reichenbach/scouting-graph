@@ -90,5 +90,5 @@ def main(argv: list[str] | None = None) -> int:
 
     activate_desktop_home()
     apply_model_mode()
-    print("YourDataScouting Review is starting. A browser window will open.", flush=True)
+    print("YDS Review is starting. A browser window will open.", flush=True)
     return serve(open_browser=True)

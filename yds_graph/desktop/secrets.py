@@ -16,7 +16,7 @@ from .. import config
 from .errors import ServiceError
 
 
-SERVICE_NAME = "yourdatascouting"
+SERVICE_NAME = "yds-review"
 ACCOUNT_NAME = "anthropic_api_key"
 
 
