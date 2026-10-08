@@ -151,6 +151,28 @@ YDS_GRAPH_STUB=1 .venv/bin/python -m yds_graph resume <thread_id> --approve
 .venv/bin/python -m yds_graph audit
 ```
 
+## Desktop app
+
+The same loop runs without a terminal. The app is unsigned. A `v*` tag attaches the three builds to a GitHub Release. A pull request or a push also uploads each build as an artifact on the desktop workflow (Actions, workflow `desktop`).
+
+Download the archive for your system and start YourDataScouting.
+
+- macOS: right-click the app, then Open. If macOS still blocks it, use System Settings > Privacy & Security.
+- Windows: if SmartScreen appears, choose More info, then Run anyway.
+- Linux: unpack the archive and run the YourDataScouting program inside it.
+
+The app keeps state, checkpoints, the audit database, and the outbox in a per-user folder:
+
+- macOS: `~/Library/Application Support/YourDataScouting`
+- Windows: `%APPDATA%\YourDataScouting`
+- Linux: `~/.local/share/yourdatascouting`
+
+The command line and the make targets keep using the checkout.
+
+Out of the box the app uses stub mode. It needs no API key and no network. In Settings you can save an Anthropic API key. The key stays on that computer, in the operating system keychain when that works, and otherwise in a file in the app data folder. A key is never part of the download.
+
+From a checkout, `.venv/bin/python -m yds_graph.desktop` opens the same app and still uses the per-user folder.
+
 ## Running it
 
 Python 3.11 or newer. On Debian or Ubuntu, `python3 -m venv` fails until `python3-venv` is installed (`sudo apt install python3-venv`).
@@ -375,6 +397,7 @@ differently, the badge at the top of this page turns red.
   note. Approving produces a PDF whose bytes contain the version stamp, the
   source file and its hash.
 - A run paused in one process resumes in another, through the checkpointer.
+- The desktop service approves a paused run into a PDF and a DELIVERED audit row, and a reject writes HOLD with no PDF. App data paths are used only when the app is launched. The CLI home stays the checkout.
 - Bench Coach: a parent message request ends at an interrupt rather than a send.
   A numeric answer traces every number to a tool result. An injury question is
   not written to the database. An invented number holds the answer.
@@ -428,7 +451,10 @@ yds_graph/
   tools.py             Bench Coach's SQL tools and database
   library.py           local vector store over the staff library
   library_graph.py     part three, retrieve then cite-or-stop
+  desktop/             review app: per-user paths, the run service, a local page
 scripts/make_sample_data.py
+scripts/desktop_entry.py
+scripts/build_desktop.py
 sample_data/           synthetic exports, roster, schedule, philosophy, docs
 tests/
 ```
