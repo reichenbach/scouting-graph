@@ -172,6 +172,13 @@ def test_resume_from_a_separate_process_uses_the_checkpointer(home):
     )
     assert run.returncode == 0, run.stderr
     assert "PAUSED FOR HUMAN REVIEW" in run.stdout
+    approve = next(line for line in run.stdout.splitlines() if line.startswith("  approve:"))
+    command = approve.split("approve:", 1)[1].strip()
+    assert command.startswith("YDS_GRAPH_STUB=1 ")
+    assert command.endswith("resume t-xproc --approve")
+    interpreter = command.removeprefix("YDS_GRAPH_STUB=1 ").split(" -m yds_graph", 1)[0]
+    # A bare `python` is missing on a fresh Debian or Ubuntu install.
+    assert "/" in interpreter
 
     resume = subprocess.run(
         [sys.executable, "-m", "yds_graph", "resume", "t-xproc", "--approve"],
