@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 import uuid
 from pathlib import Path
@@ -22,6 +23,33 @@ from . import assistant_graph, config, library_graph, report_graph, tools
 
 def _new_thread(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:10]}"
+
+
+def _shell_invoke() -> str:
+    """Shell prefix that reruns this same interpreter.
+
+    The approve and reject lines are copied out of the terminal. A bare
+    `python` is missing on a fresh Debian or Ubuntu install, and the package
+    lives in the venv the setup creates. When this process is that venv,
+    print the relative path the walkthrough uses. Keep the stub flag when
+    the run was offline, so the pasted line does not reach for a key.
+    """
+    # Do not resolve the symlink. .venv/bin/python points at system Python,
+    # and that interpreter does not have the packages installed in the venv.
+    exe = Path(sys.executable)
+    if not exe.is_absolute():
+        exe = Path.cwd() / exe
+    try:
+        rel = exe.relative_to(config.REPO_ROOT)
+    except ValueError:
+        rel = None
+    if rel is not None and rel.parts[:1] == (".venv",):
+        shown = rel.as_posix()
+    else:
+        shown = str(exe)
+    mode = config.stub_mode()
+    prefix = f"YDS_GRAPH_STUB={mode} " if mode else ""
+    return f"{prefix}{shlex.quote(shown)} -m yds_graph"
 
 
 def _print_interrupt(result: dict) -> bool:
@@ -45,8 +73,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     if _print_interrupt(result):
         print()
         print(f"thread_id: {thread_id}")
-        print(f"  approve: python -m yds_graph resume {thread_id} --approve")
-        print(f"  reject : python -m yds_graph resume {thread_id} --reject \"reason\"")
+        invoke = _shell_invoke()
+        print(f"  approve: {invoke} resume {thread_id} --approve")
+        print(f"  reject : {invoke} resume {thread_id} --reject \"reason\"")
         return 0
 
     if status == "held":
@@ -107,8 +136,9 @@ def cmd_ask(args: argparse.Namespace) -> int:
     if _print_interrupt(result):
         print()
         print(f"session: {session_id}")
-        print(f"  approve: python -m yds_graph resume {session_id} --approve")
-        print(f"  reject : python -m yds_graph resume {session_id} --reject \"reason\"")
+        invoke = _shell_invoke()
+        print(f"  approve: {invoke} resume {session_id} --approve")
+        print(f"  reject : {invoke} resume {session_id} --reject \"reason\"")
         return 0
 
     print(
