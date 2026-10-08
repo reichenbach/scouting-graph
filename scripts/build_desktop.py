@@ -1,4 +1,4 @@
-"""Build an unsigned YourDataScouting review app for this operating system.
+"""Build an unsigned YDS Review app for this operating system.
 
 PyInstaller packs the local page, the sample data, and the package into
 dist/. The archive lands in dist-pack/. Run the Linux binary with --smoke
@@ -14,7 +14,13 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-NAME = "YourDataScouting"
+
+
+def bundle_name() -> str:
+    """macOS keeps the space in YDS Review.app. Other systems use YDS-Review."""
+    if sys.platform == "darwin":
+        return "YDS Review"
+    return "YDS-Review"
 
 
 def _add_data(src: Path, dest: str) -> str:
@@ -30,7 +36,7 @@ def build() -> None:
         "--paths",
         str(ROOT),
         "--name",
-        NAME,
+        bundle_name(),
         "--noconfirm",
         "--clean",
         "--onedir",
@@ -59,7 +65,7 @@ def build() -> None:
         "--add-data",
         _add_data(ROOT / "yds_graph" / "desktop" / "static", "yds_graph/desktop/static"),
     ]
-    # A console on Linux keeps `YourDataScouting --smoke` printable in CI.
+    # A console on Linux keeps `YDS-Review --smoke` printable in CI.
     # macOS and Windows hide the console so the reviewer sees the browser.
     if sys.platform in ("darwin", "win32"):
         args.append("--windowed")
@@ -68,17 +74,18 @@ def build() -> None:
 
 def output_dir() -> Path:
     dist = ROOT / "dist"
+    name = bundle_name()
     if sys.platform == "darwin":
-        return dist / f"{NAME}.app"
-    return dist / NAME
+        return dist / f"{name}.app"
+    return dist / name
 
 
 def archive_name() -> str:
     if sys.platform == "darwin":
-        return f"{NAME}-macos.zip"
+        return "YDS-Review-macOS.zip"
     if sys.platform == "win32":
-        return f"{NAME}-windows.zip"
-    return f"{NAME}-linux.zip"
+        return "YDS-Review-Windows.zip"
+    return "YDS-Review-Linux.zip"
 
 
 def pack() -> Path:

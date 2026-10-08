@@ -14,8 +14,8 @@ import sys
 from pathlib import Path
 
 
-APP_DIR_NAME = "YourDataScouting"
-LINUX_DIR_NAME = "yourdatascouting"
+APP_DIR_NAME = "YDS Review"
+LINUX_DIR_NAME = "yds-review"
 
 
 def bundle_root() -> Path:

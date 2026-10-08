@@ -137,11 +137,11 @@ export YDS_LIBRARY_VECTORS=embeddings
 .venv/bin/python -m pytest -m live -k embed -rs
 ```
 
-## HITL walkthrough (interrupt → approve → audit)
+## Human review walkthrough (interrupt, approve, audit)
 
 Doctrine items 4 and 5 in three commands, offline, synthetic data, no API key.
-Do the setup on [docs/HITL_WALKTHROUGH.md](docs/HITL_WALKTHROUGH.md) first.
-After that, `make hitl-demo` runs interrupt, approve, and the audit table.
+Do the setup on [docs/REVIEW_WALKTHROUGH.md](docs/REVIEW_WALKTHROUGH.md) first.
+After that, `make review-demo` runs interrupt, approve, and the audit table.
 The `approve` line the run prints is safe to paste.
 
 ```bash
@@ -153,25 +153,25 @@ YDS_GRAPH_STUB=1 .venv/bin/python -m yds_graph resume <thread_id> --approve
 
 ## Desktop app
 
-The same loop runs without a terminal. The app is unsigned. A `v*` tag attaches the three builds to a GitHub Release. A pull request or a push also uploads each build as an artifact on the desktop workflow (Actions, workflow `desktop`).
+The same loop runs without a terminal. The app is called YDS Review. It is unsigned. A `v*` tag attaches the three builds to a GitHub Release. A pull request or a push also uploads each build as an artifact on the YDS Review workflow.
 
-Download the archive for your system and start YourDataScouting.
+Download the archive for your system and start YDS Review.
 
-- macOS: right-click the app, then Open. If macOS still blocks it, use System Settings > Privacy & Security.
+- macOS: right-click YDS Review, then Open. If macOS still blocks it, use System Settings > Privacy & Security.
 - Windows: if SmartScreen appears, choose More info, then Run anyway.
-- Linux: unpack the archive and run the YourDataScouting program inside it.
+- Linux: unpack the archive and run the YDS-Review program inside it.
 
 The app keeps state, checkpoints, the audit database, and the outbox in a per-user folder:
 
-- macOS: `~/Library/Application Support/YourDataScouting`
-- Windows: `%APPDATA%\YourDataScouting`
-- Linux: `~/.local/share/yourdatascouting`
+- macOS: `~/Library/Application Support/YDS Review`
+- Windows: `%APPDATA%\YDS Review`
+- Linux: `~/.local/share/yds-review`
 
 The command line and the make targets keep using the checkout.
 
 Out of the box the app uses stub mode. It needs no API key and no network. In Settings you can save an Anthropic API key. The key stays on that computer, in the operating system keychain when that works, and otherwise in a file in the app data folder. A key is never part of the download.
 
-From a checkout, `.venv/bin/python -m yds_graph.desktop` opens the same app and still uses the per-user folder.
+From a checkout, `.venv/bin/python -m yds_graph.desktop` opens YDS Review and still uses the per-user folder.
 
 ## Running it
 
@@ -186,7 +186,7 @@ cp .env.example .env                              # only for a hosted model; the
 
 The commands below call the hosted model when a real key is in `.env`. Prefix any command with
 `YDS_GRAPH_STUB=1` to run the entire pipeline with a deterministic stub and no
-network, which is how the tests and `make hitl-demo` run. A key is not required for that path.
+network, which is how the tests and `make review-demo` run. A key is not required for that path.
 
 ```bash
 # a clean file: pauses for review
