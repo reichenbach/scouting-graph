@@ -8,6 +8,14 @@ Done check from the job ramp: someone else can follow this page without help.
 
 ## Setup (once)
 
+Python 3.11 or newer. `python3 --version` prints it. On Debian or Ubuntu, `python3 -m venv` needs a package that is not always installed. If the command says ensurepip is not available, install it and run the command again:
+
+```bash
+sudo apt install python3-venv
+```
+
+This walkthrough does not use `.env`.
+
 ```bash
 git clone https://github.com/reichenbach/scouting-graph.git
 cd scouting-graph
@@ -31,12 +39,14 @@ then **pauses**. Nothing is written to `outbox/` yet. You should see:
 PAUSED FOR HUMAN REVIEW
 ...
 thread_id: report-<hex>
-  approve: python -m yds_graph resume report-<hex> --approve
-  reject : python -m yds_graph resume report-<hex> --reject "reason"
+  approve: YDS_GRAPH_STUB=1 .venv/bin/python -m yds_graph resume report-<hex> --approve
+  reject : YDS_GRAPH_STUB=1 .venv/bin/python -m yds_graph resume report-<hex> --reject "reason"
 ```
 
-Copy the `thread_id`. The checkpointer at `state/checkpoints.sqlite` holds the
-paused graph, so you can resume from a different shell (or tomorrow).
+Paste the `approve` line. It uses the venv interpreter and keeps the stub
+flag, so the pasted command stays offline. The checkpointer at
+`state/checkpoints.sqlite` holds the paused graph, so you can resume from a
+different shell (or tomorrow).
 
 ## 2. Approve
 
