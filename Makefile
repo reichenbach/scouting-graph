@@ -1,6 +1,6 @@
 PY := .venv/bin/python
 
-.PHONY: help venv data test run-sample ask lookup audit hitl-demo clean
+.PHONY: help venv data test run-sample ask lookup audit hitl-demo desktop clean
 
 help:
 	@echo "make venv        create .venv and install pinned deps"
@@ -11,6 +11,7 @@ help:
 	@echo "make lookup      ask the staff library a methodology question with the stub model"
 	@echo "make audit       print the audit table"
 	@echo "make hitl-demo   interrupt → approve → audit (stub; see docs/HITL_WALKTHROUGH.md)"
+	@echo "make desktop     open the review app (per-user folder, stub unless a key is saved)"
 
 venv:
 	python3 -m venv .venv
@@ -34,6 +35,9 @@ lookup:
 
 audit:
 	$(PY) -m yds_graph audit
+
+desktop:
+	$(PY) -m yds_graph.desktop
 
 hitl-demo:
 	@set -e; \

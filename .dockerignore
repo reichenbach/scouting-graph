@@ -8,3 +8,6 @@ state
 outbox
 errors
 *.sqlite
+dist
+dist-pack
+build

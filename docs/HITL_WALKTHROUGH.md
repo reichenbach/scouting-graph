@@ -104,3 +104,7 @@ make hitl-demo
 
 Runs interrupt → approve → audit with the stub model and prints the latest
 audit rows.
+
+## Without a terminal
+
+The desktop app runs this same loop. Download it from a GitHub Release, or from the artifacts on the desktop workflow. Setup and the unsigned-app prompts are in the Desktop app section of the README. Stub mode is the default there too. No API key.
