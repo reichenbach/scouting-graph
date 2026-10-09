@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YDS Review</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div>
+      <h1>YDS Review</h1>
+    </div>
+    <p id="mode" class="mode">Offline stub</p>
+  </header>
+  <nav aria-label="Sections">
+    <button type="button" data-view="pending" aria-current="page">Waiting</button>
+    <button type="button" data-view="new">New report</button>
+    <button type="button" data-view="audit">Audit</button>
+    <button type="button" data-view="ask">Bench Coach</button>
+    <button type="button" data-view="library">Library</button>
+    <button type="button" data-view="settings">Settings</button>
+  </nav>
+  <p id="banner" class="banner" hidden></p>
+  <main>
+    <section class="view" data-view="pending">
+      <h2>Waiting for a person</h2>
+      <p class="lead">A report that passed the checks stops here. Nothing is delivered until you approve it.</p>
+      <div id="pending-list"></div>
+      <p id="pending-empty" class="empty" hidden>No reports are waiting. Start one from a CSV, or use the sample file.</p>
+    </section>
+
+    <section class="view" data-view="review" hidden>
+      <button type="button" id="back" class="text-button">Back to the list</button>
+      <h2 id="review-title">Report</h2>
+      <p id="review-reason" class="callout"></p>
+      <p id="review-meta" class="meta"></p>
+      <div id="review-body"></div>
+      <div id="decision" class="decision">
+        <button type="button" id="approve" class="primary">Approve</button>
+        <label for="reject-reason">Reason for holding it back</label>
+        <textarea id="reject-reason" rows="3" placeholder="What should be looked at again?"></textarea>
+        <button type="button" id="reject" class="danger">Reject</button>
+      </div>
+      <div id="result" class="result" hidden>
+        <p id="result-message"></p>
+        <p id="result-path" class="path"></p>
+        <button type="button" id="open-pdf" class="primary" hidden>Open the PDF</button>
+      </div>
+    </section>
+
+    <section class="view" data-view="new" hidden>
+      <h2>New report</h2>
+      <p class="lead">Pick a pitch tracking export, or run the bundled sample. The run pauses here for review.</p>
+      <label for="csv">CSV file</label>
+      <input id="csv" type="file" accept=".csv,text/csv">
+      <label for="coach">Folder label</label>
+      <input id="coach" type="text" value="sample" maxlength="40" autocomplete="off">
+      <p class="help">This only names the folder the PDF is saved in. sample is fine.</p>
+      <div class="row">
+        <button type="button" id="start-file">Start from this file</button>
+        <button type="button" id="start-sample" class="primary">Use the sample file</button>
+      </div>
+      <div id="start-result"></div>
+    </section>
+
+    <section class="view" data-view="audit" hidden>
+      <h2>Audit</h2>
+      <p class="lead">Every run writes a row, including the ones that were held.</p>
+      <button type="button" id="refresh-audit">Refresh</button>
+      <div id="audit-table"></div>
+    </section>
+
+    <section class="view" data-view="ask" hidden>
+      <h2>Bench Coach</h2>
+      <p class="lead">Questions about the roster and the schedule. This program does not send messages.</p>
+      <label for="ask-question">Question</label>
+      <textarea id="ask-question" rows="3"></textarea>
+      <button type="button" id="ask-go" class="primary">Ask</button>
+      <div id="ask-answer" class="answer"></div>
+    </section>
+
+    <section class="view" data-view="library" hidden>
+      <h2>Library</h2>
+      <p class="lead">Questions about how a report is written. Roster questions stay with Bench Coach.</p>
+      <label for="library-question">Question</label>
+      <textarea id="library-question" rows="3"></textarea>
+      <button type="button" id="library-go" class="primary">Look up</button>
+      <div id="library-answer" class="answer"></div>
+    </section>
+
+    <section class="view" data-view="settings" hidden>
+      <h2>Settings</h2>
+      <p class="lead">The offline stub needs no key and no network. A key is optional, and it stays on this computer.</p>
+      <fieldset>
+        <legend>How notes are written</legend>
+        <label class="choice"><input type="radio" name="mode" value="stub" checked> Offline stub</label>
+        <label class="choice"><input type="radio" name="mode" value="anthropic"> Anthropic, with a key saved here</label>
+      </fieldset>
+      <label for="api-key">Anthropic API key</label>
+      <input id="api-key" type="password" autocomplete="off" spellcheck="false">
+      <p class="help">Leave this blank to keep the key that is already saved. The key is not shown again.</p>
+      <p id="storage-label" class="help"></p>
+      <div class="row">
+        <button type="button" id="save-settings" class="primary">Save settings</button>
+        <button type="button" id="clear-key">Remove the saved key</button>
+      </div>
+      <h3>Files on this computer</h3>
+      <p id="data-dir" class="path"></p>
+      <p class="help">The outbox, the audit database, and the saved runs live in that folder. They are not stored in the folder you opened the app from.</p>
+    </section>
+  </main>
+  <footer>
+    <p id="version"></p>
+  </footer>
+  <noscript>This page needs JavaScript. It still runs only on this computer.</noscript>
+  <script src="app.js"></script>
+</body>
+</html>

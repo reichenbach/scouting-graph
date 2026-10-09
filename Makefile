@@ -1,6 +1,6 @@
 PY := .venv/bin/python
 
-.PHONY: help venv data test run-sample ask lookup audit hitl-demo clean
+.PHONY: help venv data test run-sample ask lookup audit review-demo hitl-demo desktop clean
 
 help:
 	@echo "make venv        create .venv and install pinned deps"
@@ -10,7 +10,8 @@ help:
 	@echo "make ask         ask the staff assistant a sample question with the stub model"
 	@echo "make lookup      ask the staff library a methodology question with the stub model"
 	@echo "make audit       print the audit table"
-	@echo "make hitl-demo   interrupt → approve → audit (stub; see docs/HITL_WALKTHROUGH.md)"
+	@echo "make review-demo interrupt, approve, and audit (stub; see docs/REVIEW_WALKTHROUGH.md)"
+	@echo "make desktop     open YDS Review (per-user folder, stub unless a key is saved)"
 
 venv:
 	python3 -m venv .venv
@@ -35,7 +36,10 @@ lookup:
 audit:
 	$(PY) -m yds_graph audit
 
-hitl-demo:
+desktop:
+	$(PY) -m yds_graph.desktop
+
+review-demo:
 	@set -e; \
 	out=$$(YDS_GRAPH_STUB=1 $(PY) -m yds_graph run inbox/sample.csv --coach sample); \
 	echo "$$out"; \
@@ -43,6 +47,10 @@ hitl-demo:
 	test -n "$$tid"; \
 	YDS_GRAPH_STUB=1 $(PY) -m yds_graph resume "$$tid" --approve; \
 	$(PY) -m yds_graph audit --limit 5
+
+hitl-demo:
+	@echo "hitl-demo is deprecated. Use make review-demo."
+	@$(MAKE) --no-print-directory review-demo
 
 clean:
 	rm -rf outbox errors state audit.sqlite .pytest_cache

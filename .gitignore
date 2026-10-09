@@ -1,4 +1,6 @@
 .env
+secrets.env
+settings.json
 *.sqlite
 outbox/
 errors/
@@ -7,3 +9,6 @@ state/
 __pycache__/
 *.pyc
 .pytest_cache/
+dist/
+dist-pack/
+build/

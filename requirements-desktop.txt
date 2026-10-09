@@ -1,0 +1,4 @@
+# Desktop app only. The offline suite and the Docker image do not install this.
+# Pinned 2026-10-08. Bump deliberately.
+pyinstaller==6.22.3
+keyring==25.7.0
